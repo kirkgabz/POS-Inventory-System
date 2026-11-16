@@ -3,7 +3,7 @@
   "short_name": "Jen POS",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f1ea",
-  "theme_color": "#f5f1ea",
+  "background_color": "#eef1e0",
+  "theme_color": "#141414",
   "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }
