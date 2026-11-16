@@ -18,6 +18,7 @@ export interface Product {
   barcode: string | null;
   word_code: string | null;
   is_custom: boolean;
+  image_url: string | null;
   price: number;
   cost: number;
   stock: number;
@@ -56,6 +57,7 @@ export interface SaleItem {
   product_id: string | null;
   name: string;
   unit_price: number;
+  unit_cost: number;
   quantity: number;
   line_total: number;
 }

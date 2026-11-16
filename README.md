@@ -16,11 +16,13 @@ Web-based point of sale + inventory for the store. React + TypeScript (Vite), Su
 - **Authorized staff** — admin flips a switch per staff member to allow adding products, updating prices and adjusting stock.
 - **Admin notifications** — every add / price change / edit / stock adjustment by staff creates a notification (done by a database trigger, so it can't be bypassed). Admins get a live **pop-up card** with the details (e.g. ₱45 → ₱50) plus a notification page.
 - Confirmation cards before every important action, success/error alerts after.
+- **Add products from a photo** — the barcode is read from the uploaded picture and the name/category are filled from the free Open Food / Beauty / Products Facts databases; staff complete price and stock. Items without a barcode get one generated.
+- **Excel sales reports** (admin) for any day, week, month or year: summary, breakdown, transactions, items sold and gross profit.
 - Inventory with low-stock / out-of-stock filters, sales history, dashboard.
 
 ## Setup
 
-1. **Supabase**: create a project → *SQL Editor* → paste and run [`supabase/schema.sql`](supabase/schema.sql).
+1. **Supabase**: create a project → *SQL Editor* → run [`supabase/schema.sql`](supabase/schema.sql), then [`supabase/migrations/002_product_photos_and_costs.sql`](supabase/migrations/002_product_photos_and_costs.sql).
 2. **Auth settings** (Supabase → Authentication → URL Configuration): set *Site URL* to your Vercel URL (and add `http://localhost:5173` to redirect URLs). Email confirmation is on by default; turn it off under *Providers → Email* if you don't want it.
 3. **Env**: copy `.env.example` to `.env.local` and fill `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Project Settings → API).
 4. Run:

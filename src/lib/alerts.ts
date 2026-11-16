@@ -85,3 +85,36 @@ export function loading(title = 'Working…') {
 }
 
 export { Swal };
+
+/** Three-way choice card. Resolves 'confirm' | 'deny' | 'cancel'. */
+export async function choose(opts: {
+  title: string;
+  html?: string;
+  icon?: SweetAlertIcon;
+  confirmText: string;
+  denyText?: string;
+  cancelText?: string;
+}): Promise<'confirm' | 'deny' | 'cancel'> {
+  const res = await Base.fire({
+    title: opts.title,
+    html: opts.html,
+    icon: opts.icon ?? 'question',
+    showDenyButton: !!opts.denyText,
+    showCancelButton: true,
+    confirmButtonText: opts.confirmText,
+    denyButtonText: opts.denyText,
+    cancelButtonText: opts.cancelText ?? 'Cancel',
+    reverseButtons: false,
+    customClass: {
+      popup: 'sw-popup',
+      title: 'sw-title',
+      htmlContainer: 'sw-text',
+      confirmButton: 'btn btn-primary',
+      denyButton: 'btn btn-ghost',
+      cancelButton: 'btn btn-ghost',
+      actions: 'sw-actions sw-actions-col',
+      icon: 'sw-icon',
+    },
+  });
+  return res.isConfirmed ? 'confirm' : res.isDenied ? 'deny' : 'cancel';
+}

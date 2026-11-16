@@ -247,7 +247,13 @@ export default function PosPage() {
               onClick={() => add(p)}
               disabled={p.stock <= 0}
             >
-              <span className="tile-letter display">{p.name[0]}</span>
+              {p.image_url ? (
+                <span className="tile-photo">
+                  <img className="tile-img" src={p.image_url} alt="" loading="lazy" />
+                </span>
+              ) : (
+                <span className="tile-letter display">{p.name[0]}</span>
+              )}
               <span className="tile-name">{p.name}</span>
               <span className="tile-foot">
                 <b>{fmtMoney(p.price)}</b>

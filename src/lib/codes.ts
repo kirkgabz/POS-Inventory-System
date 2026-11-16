@@ -52,3 +52,14 @@ export function generateWordCode(name: string): string {
 
 /** Normalise any scanned / typed code so lookups are forgiving. */
 export const normaliseCode = (raw: string) => raw.trim().toUpperCase().replace(/\s+/g, '');
+
+/** Random 4-char tail, reused so the word code stays stable while the name is typed. */
+export function randomTail(): string {
+  let tail = '';
+  for (let i = 0; i < 4; i++) tail += ALPHABET[randomInt(ALPHABET.length)];
+  return tail;
+}
+
+export function wordCodeFor(name: string, tail: string): string {
+  return generateWordCode(name).replace(/-[A-Z0-9]{4}$/, `-${tail}`);
+}

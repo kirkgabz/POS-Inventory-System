@@ -145,7 +145,9 @@ export default function ProductsPage() {
                 <tr key={p.id} className="row-in" style={{ animationDelay: `${Math.min(i, 20) * 18}ms` }}>
                   <td>
                     <div className="prod-cell">
-                      <span className="prod-dot" data-letter={p.name[0]} />
+                      <span className={`prod-dot ${p.image_url ? 'has-img' : ''}`} data-letter={p.name[0]}>
+                        {p.image_url && <img src={p.image_url} alt="" loading="lazy" />}
+                      </span>
                       <div>
                         <strong>{p.name}</strong>
                         <div className="muted small">
@@ -203,7 +205,17 @@ export default function ProductsPage() {
         </div>
       )}
 
-      <ProductForm open={formOpen} onClose={() => setFormOpen(false)} product={editing} categories={categories} onSaved={upsertLocal} />
+      <ProductForm
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        product={editing}
+        categories={categories}
+        onSaved={upsertLocal}
+        onExisting={(p) => {
+          setEditing(p);
+          setTimeout(() => setFormOpen(true), 50);
+        }}
+      />
 
       <StockAdjust
         product={adjusting}
