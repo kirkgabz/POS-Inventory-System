@@ -46,6 +46,8 @@ export interface Sale {
   amount_paid: number;
   change_due: number;
   payment_method: string;
+  payment_account: string | null;
+  payment_ref: string | null;
   created_at: string;
   cashier?: { full_name: string } | null;
   sale_items?: SaleItem[];
@@ -96,4 +98,17 @@ export interface SaleResult {
   total: number;
   amount_paid: number;
   change: number;
+}
+
+export type PaymentKind = 'ewallet' | 'bank';
+
+export interface PaymentAccount {
+  id: string;
+  kind: PaymentKind;
+  provider: string;
+  account_name: string;
+  account_number: string | null;
+  qr_url: string | null;
+  is_active: boolean;
+  created_at: string;
 }

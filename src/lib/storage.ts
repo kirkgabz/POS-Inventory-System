@@ -27,3 +27,12 @@ export async function uniqueEan13(): Promise<string> {
   }
   return generateEan13();
 }
+
+/** Upload a payment QR code — kept as sharp PNG so it stays scannable. */
+export async function uploadPaymentQr(file: File): Promise<string> {
+  const blob = await compressImage(file, 1100, 'image/png');
+  const path = `payment-qr/${crypto.randomUUID()}.png`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/png', upsert: false });
+  if (error) throw error;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}

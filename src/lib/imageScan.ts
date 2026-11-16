@@ -118,10 +118,10 @@ export async function decodeBarcodeFromImage(file: File): Promise<string | null>
 }
 
 /** Shrink a photo to a web-friendly WebP/JPEG for storage. */
-export async function compressImage(file: File, maxSide = 900): Promise<Blob> {
+export async function compressImage(file: File, maxSide = 900, type: 'image/webp' | 'image/png' = 'image/webp'): Promise<Blob> {
   const img = await loadImage(file);
   const c = toCanvas(img, maxSide);
   return new Promise((resolve) =>
-    c.toBlob((b) => resolve(b ?? file), 'image/webp', 0.82),
+    c.toBlob((b) => resolve(b ?? file), type, 0.82),
   );
 }

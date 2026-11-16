@@ -1,21 +1,41 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Camera, CameraOff, Loader2, Minus, Plus, Printer, ScanLine, Search, ShoppingBag, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  Camera,
+  CameraOff,
+  Landmark,
+  Loader2,
+  Minus,
+  Plus,
+  Printer,
+  QrCode,
+  ScanLine,
+  ShoppingBag,
+  Trash2,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../hooks/useProducts';
+import { usePaymentAccounts } from '../hooks/usePaymentAccounts';
 import CameraScanner, { beep } from '../components/CameraScanner';
 import ProductForm from '../components/ProductForm';
+import PaymentAccountCard, { kindIcon, maskNumber } from '../components/PaymentAccountCard';
 import Modal from '../components/Modal';
 import { supabase, errorMessage } from '../lib/supabase';
 import { confirmAction, failure, toast } from '../lib/alerts';
 import { normaliseCode } from '../lib/codes';
-import { STORE_NAME, fmtDate, fmtMoney } from '../lib/format';
-import type { CartLine, Product, SaleResult } from '../lib/types';
+import { STORE_NAME, fmtDate, fmtMoney, methodLabel } from '../lib/format';
+import type { CartLine, PaymentAccount, Product, SaleResult } from '../lib/types';
 
 const CART_KEY = 'jen-pos-cart';
+type Method = 'cash' | 'ewallet' | 'bank';
+type Receipt = SaleResult & { lines: CartLine[]; at: string; method: Method; account?: string; ref?: string };
 
 export default function PosPage() {
   const { profile, canManageProducts } = useAuth();
   const { products, categories, findByCode, upsertLocal } = useProducts();
+  const { accounts } = usePaymentAccounts();
+
   const [cart, setCart] = useState<CartLine[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(CART_KEY) || '[]');
@@ -24,15 +44,20 @@ export default function PosPage() {
     }
   });
   const [query, setQuery] = useState('');
-  const [cat, setCat] = useState('');
+  const [addQty, setAddQty] = useState(1);
+  const [hi, setHi] = useState(0);
+  const [sugOpen, setSugOpen] = useState(false);
   const [camera, setCamera] = useState(false);
   const [discount, setDiscount] = useState<number>(0);
-  const [paid, setPaid] = useState<string>('');
-  const [method, setMethod] = useState<'cash' | 'gcash' | 'card'>('cash');
+  const [paid, setPaid] = useState('');
+  const [method, setMethod] = useState<Method>('cash');
+  const [account, setAccount] = useState<PaymentAccount | null>(null);
+  const [showAccount, setShowAccount] = useState<PaymentAccount | null>(null);
+  const [ref, setRef] = useState('');
   const [busy, setBusy] = useState(false);
-  const [receipt, setReceipt] = useState<(SaleResult & { lines: CartLine[]; at: string; method: string }) | null>(null);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [newCode, setNewCode] = useState<string | null>(null);
-  const [bump, setBump] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -43,15 +68,34 @@ export default function PosPage() {
     }
   }, [cart]);
 
-  // keep cart prices/stock in sync with live catalogue
+  // keep cart prices/stock in sync with the live catalogue
   useEffect(() => {
+    if (!products.length) return;
     setCart((c) =>
       c
-        .map((l) => ({ ...l, product: products.find((p) => p.id === l.product.id) ?? l.product }))
-        .filter((l) => products.length === 0 || products.some((p) => p.id === l.product.id)),
+        .filter((l) => products.some((p) => p.id === l.product.id))
+        .map((l) => ({ ...l, product: products.find((p) => p.id === l.product.id)! })),
     );
   }, [products]);
 
+  /* ---------- payment accounts ---------- */
+  const byKind = useMemo(
+    () => ({ ewallet: accounts.filter((a) => a.kind === 'ewallet'), bank: accounts.filter((a) => a.kind === 'bank') }),
+    [accounts],
+  );
+  const available = (m: Method) => m === 'cash' || byKind[m].length > 0;
+
+  useEffect(() => {
+    if (method === 'cash') return setAccount(null);
+    if (!available(method)) {
+      setMethod('cash');
+      return;
+    }
+    setAccount((cur) => (cur && byKind[method].some((a) => a.id === cur.id) ? cur : byKind[method].length === 1 ? byKind[method][0]! : null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [method, byKind]);
+
+  /* ---------- totals ---------- */
   const subtotal = useMemo(() => cart.reduce((s, l) => s + l.product.price * l.quantity, 0), [cart]);
   const disc = Math.min(Math.max(Number(discount) || 0, 0), subtotal);
   const total = subtotal - disc;
@@ -59,52 +103,71 @@ export default function PosPage() {
   const change = paidNum - total;
   const itemCount = cart.reduce((s, l) => s + l.quantity, 0);
 
+  /* ---------- cart ops ---------- */
   const add = (p: Product, qty = 1) => {
     const inCart = cart.find((l) => l.product.id === p.id)?.quantity ?? 0;
-    if (inCart + qty > p.stock) {
+    const room = p.stock - inCart;
+    if (room <= 0) {
       beep(false);
-      toast(p.stock <= 0 ? `${p.name} is out of stock` : `Only ${p.stock} ${p.unit} of ${p.name} left`, 'warning');
-      return;
+      toast(p.stock <= 0 ? `${p.name} is out of stock` : `All ${p.stock} ${p.unit} of ${p.name} are already in the order`, 'warning');
+      return false;
     }
+    const q = Math.min(qty, room);
+    if (q < qty) toast(`Only ${p.stock} ${p.unit} in stock — added ${q}`, 'warning');
     setCart((c) => {
       const i = c.findIndex((l) => l.product.id === p.id);
-      if (i === -1) return [{ product: p, quantity: qty }, ...c];
+      if (i === -1) return [...c, { product: p, quantity: q }];
       const next = c.slice();
-      next[i] = { ...next[i]!, quantity: next[i]!.quantity + qty };
+      next[i] = { ...next[i]!, quantity: next[i]!.quantity + q };
       return next;
     });
-    setBump(p.id);
-    setTimeout(() => setBump(null), 400);
+    setFlash(p.id);
+    setTimeout(() => setFlash(null), 600);
+    return true;
   };
 
   const setQty = (id: string, qty: number) =>
     setCart((c) =>
-      c.flatMap((l) => {
-        if (l.product.id !== id) return [l];
-        if (qty <= 0) return [];
-        if (qty > l.product.stock) {
-          toast(`Only ${l.product.stock} left`, 'warning');
-          return [{ ...l, quantity: l.product.stock }];
+      c.map((l) => {
+        if (l.product.id !== id) return l;
+        const q = Math.max(1, Math.trunc(qty) || 1);
+        if (q > l.product.stock) {
+          toast(`Only ${l.product.stock} ${l.product.unit} in stock`, 'warning');
+          return { ...l, quantity: l.product.stock };
         }
-        return [{ ...l, quantity: qty }];
+        return { ...l, quantity: q };
       }),
     );
+
+  const removeLine = async (l: CartLine) => {
+    if (await confirmAction({ title: 'Remove from order?', html: `<b>${esc(l.product.name)}</b> × ${l.quantity}`, confirmText: 'Remove', danger: true })) {
+      setCart((c) => c.filter((x) => x.product.id !== l.product.id));
+      toast('Removed', 'info');
+    }
+  };
+
+  const pick = (p: Product) => {
+    if (p.stock <= 0) return toast(`${p.name} is out of stock`, 'warning');
+    if (add(p, addQty)) {
+      beep();
+      toast(`Added ${addQty > 1 ? `${addQty} × ` : ''}${p.name}`);
+    }
+    setQuery('');
+    setAddQty(1);
+    setSugOpen(false);
+    searchRef.current?.focus();
+  };
 
   const handleCode = async (raw: string) => {
     const code = normaliseCode(raw);
     if (!code) return;
     const p = findByCode(code);
-    if (p) {
-      beep();
-      add(p);
-      toast(`Added ${p.name}`);
-      return;
-    }
+    if (p) return pick(p);
     beep(false);
     if (canManageProducts) {
       const ok = await confirmAction({
         title: 'Code not found',
-        html: `<span class="mono">${code}</span> isn't in your inventory yet.<br/>Add it as a new product?`,
+        html: `<span class="mono">${esc(code)}</span> isn't in your inventory yet.<br/>Add it as a new product?`,
         confirmText: 'Add product',
         icon: 'info',
       });
@@ -114,49 +177,87 @@ export default function PosPage() {
     }
   };
 
-  const filtered = useMemo(() => {
+  /* ---------- search suggestions (2+ characters) ---------- */
+  const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return products.filter(
-      (p) =>
-        (!cat || p.category === cat) &&
-        (!q || p.name.toLowerCase().includes(q) || p.word_code?.toLowerCase().includes(q) || p.barcode?.includes(q)),
-    );
-  }, [products, query, cat]);
+    if (q.length < 2) return [];
+    const score = (p: Product) => {
+      const wc = p.word_code?.toLowerCase() ?? '';
+      const nm = p.name.toLowerCase();
+      const bc = p.barcode?.toLowerCase() ?? '';
+      if (wc === q || bc === q) return 0;
+      if (wc.startsWith(q) || wc.split('-').some((part) => part.startsWith(q))) return 1;
+      if (nm.startsWith(q)) return 2;
+      if (nm.split(/\s+/).some((w) => w.startsWith(q))) return 3;
+      if (wc.includes(q) || nm.includes(q)) return 4;
+      if (bc.includes(q)) return 5;
+      return 99;
+    };
+    return products
+      .map((p) => ({ p, s: score(p) }))
+      .filter((x) => x.s < 99)
+      .sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name))
+      .slice(0, 8)
+      .map((x) => x.p);
+  }, [query, products]);
+
+  useEffect(() => setHi(0), [query]);
 
   const onSearchKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
-    // USB barcode scanners type the code + Enter
-    if (findByCode(q) || /^[A-Z0-9-]{6,}$/i.test(q)) {
-      handleCode(q);
-    } else if (filtered.length === 1) {
-      add(filtered[0]!);
-    } else return;
-    setQuery('');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSugOpen(true);
+      setHi((h) => Math.min(h + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHi((h) => Math.max(h - 1, 0));
+    } else if (e.key === 'Escape') {
+      setSugOpen(false);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = query.trim();
+      if (!q) return;
+      const exact = findByCode(q);
+      if (exact) return pick(exact); // USB scanner / full code typed
+      if (suggestions[hi]) return pick(suggestions[hi]!);
+      if (/^[A-Z0-9-]{6,}$/i.test(q)) {
+        handleCode(q);
+        setQuery('');
+      }
+    }
   };
 
+  /* ---------- checkout ---------- */
   const clearCart = async () => {
     if (!cart.length) return;
-    if (await confirmAction({ title: 'Clear the cart?', text: `${itemCount} item(s) will be removed.`, confirmText: 'Clear cart', danger: true })) {
-      setCart([]);
-      setDiscount(0);
-      setPaid('');
-      toast('Cart cleared', 'info');
+    if (await confirmAction({ title: 'Clear the order?', text: `${itemCount} item(s) will be removed.`, confirmText: 'Clear order', danger: true })) {
+      resetOrder();
+      toast('Order cleared', 'info');
     }
+  };
+
+  const resetOrder = () => {
+    setCart([]);
+    setDiscount(0);
+    setPaid('');
+    setRef('');
+    setMethod('cash');
   };
 
   const checkout = async () => {
     if (!cart.length) return;
-    if (method === 'cash' && change < 0) {
-      failure('Not enough cash', `Customer still owes ${fmtMoney(-change)}.`);
-      return;
-    }
+    if (method === 'cash' && change < 0) return failure('Not enough cash', `Customer still owes ${fmtMoney(-change)}.`);
+    if (method !== 'cash' && !account) return failure('Choose an account', `Select which ${methodLabel(method)} account the customer paid to.`);
+
+    const acctLabel = account ? `${account.provider} · ${account.account_name}` : '';
     const ok = await confirmAction({
       title: 'Complete this sale?',
       html: `<div class="sw-summary"><span>${itemCount} item(s)</span><b>${fmtMoney(total)}</b></div>
-        ${method === 'cash' ? `<div class="sw-summary"><span>Cash</span><span>${fmtMoney(paidNum)}</span></div><div class="sw-summary big"><span>Change</span><b>${fmtMoney(change)}</b></div>` : `<div class="sw-summary"><span>Paid via</span><span>${method.toUpperCase()}</span></div>`}`,
+        ${
+          method === 'cash'
+            ? `<div class="sw-summary"><span>Cash</span><span>${fmtMoney(paidNum)}</span></div><div class="sw-summary big"><span>Change</span><b>${fmtMoney(change)}</b></div>`
+            : `<div class="sw-summary"><span>${methodLabel(method)}</span><span>${esc(acctLabel)}</span></div><div class="sw-summary"><span>Reference</span><span class="mono">${ref ? esc(ref) : '—'}</span></div>`
+        }`,
       confirmText: 'Complete sale',
     });
     if (!ok) return;
@@ -167,27 +268,31 @@ export default function PosPage() {
       p_amount_paid: paidNum,
       p_payment_method: method,
       p_discount: disc,
+      p_payment_account: acctLabel || null,
+      p_payment_ref: method === 'cash' ? null : ref.trim() || null,
     });
     setBusy(false);
     if (error) return failure('Sale not completed', errorMessage(error));
 
     const res = data as SaleResult;
-    setReceipt({ ...res, lines: cart, at: new Date().toISOString(), method });
-    // optimistic local stock update (realtime will also confirm)
+    setReceipt({ ...res, lines: cart, at: new Date().toISOString(), method, account: acctLabel || undefined, ref: ref.trim() || undefined });
     cart.forEach((l) => upsertLocal({ ...l.product, stock: l.product.stock - l.quantity }));
-    setCart([]);
-    setDiscount(0);
-    setPaid('');
+    resetOrder();
     beep();
   };
 
   const quickCash = useMemo(() => {
     if (total <= 0) return [];
-    const bills = [20, 50, 100, 200, 500, 1000];
     const opts = new Set<number>([Math.ceil(total)]);
-    bills.forEach((b) => opts.add(Math.ceil(total / b) * b));
+    [20, 50, 100, 200, 500, 1000].forEach((b) => opts.add(Math.ceil(total / b) * b));
     return [...opts].sort((a, b) => a - b).slice(0, 4);
   }, [total]);
+
+  const methods: { key: Method; label: string; icon: ReactNode }[] = [
+    { key: 'cash', label: 'Cash', icon: null },
+    { key: 'ewallet', label: 'E-wallet', icon: <Wallet size={14} /> },
+    { key: 'bank', label: 'Bank / Card', icon: <Landmark size={14} /> },
+  ];
 
   return (
     <div className="pos">
@@ -210,111 +315,152 @@ export default function PosPage() {
           </div>
         )}
 
-        <div className="search search-lg">
-          <ScanLine size={18} />
-          <input
-            ref={searchRef}
-            className="input"
-            autoFocus
-            placeholder="Scan with USB scanner, type a code, or search…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onSearchKey}
-          />
-          {query && (
-            <button className="input-icon" onClick={() => setQuery('')} aria-label="Clear">
-              <X size={16} />
+        <div className="add-row">
+          <div className="search search-lg suggest-wrap">
+            <ScanLine size={18} />
+            <input
+              ref={searchRef}
+              className="input"
+              autoFocus
+              placeholder="Type a word code or name (2+ letters), or scan…"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSugOpen(true);
+              }}
+              onFocus={() => setSugOpen(true)}
+              onBlur={() => setTimeout(() => setSugOpen(false), 150)}
+              onKeyDown={onSearchKey}
+              role="combobox"
+              aria-expanded={sugOpen && suggestions.length > 0}
+            />
+            {query && (
+              <button className="input-icon" onClick={() => setQuery('')} aria-label="Clear">
+                <X size={16} />
+              </button>
+            )}
+
+            {sugOpen && query.trim().length >= 2 && (
+              <div className="suggest" role="listbox">
+                {suggestions.length === 0 ? (
+                  <div className="suggest-empty muted small">No product matches “{query.trim()}”.</div>
+                ) : (
+                  suggestions.map((p, i) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="option"
+                      aria-selected={i === hi}
+                      className={`suggest-item ${i === hi ? 'hi' : ''} ${p.stock <= 0 ? 'out' : ''}`}
+                      onMouseEnter={() => setHi(i)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pick(p);
+                      }}
+                    >
+                      <span className={`prod-dot ${p.image_url ? 'has-img' : ''}`} data-letter={p.name[0]}>
+                        {p.image_url && <img src={p.image_url} alt="" />}
+                      </span>
+                      <span className="grow">
+                        <strong>
+                          <Mark text={p.name} q={query} />
+                        </strong>
+                        <span className="mono small muted">
+                          <Mark text={p.word_code ?? p.barcode ?? ''} q={query} />
+                        </span>
+                      </span>
+                      <span className="suggest-right">
+                        <b>{fmtMoney(p.price)}</b>
+                        <small className={p.stock <= p.low_stock_threshold ? 'warn' : 'muted'}>
+                          {p.stock <= 0 ? 'sold out' : `${p.stock} left`}
+                        </small>
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="qty qty-lg" title="Quantity to add">
+            <button onClick={() => setAddQty((q) => Math.max(1, q - 1))} aria-label="Less">
+              <Minus size={14} />
             </button>
-          )}
+            <input value={addQty} inputMode="numeric" onChange={(e) => setAddQty(Math.max(1, Math.trunc(Number(e.target.value)) || 1))} aria-label="Quantity" />
+            <button onClick={() => setAddQty((q) => q + 1)} aria-label="More">
+              <Plus size={14} />
+            </button>
+          </div>
         </div>
 
-        <div className="chips">
-          <button className={`chip-btn ${!cat ? 'on' : ''}`} onClick={() => setCat('')}>
-            All
-          </button>
-          {categories.map((c) => (
-            <button key={c} className={`chip-btn ${cat === c ? 'on' : ''}`} onClick={() => setCat(c)}>
-              {c}
-            </button>
-          ))}
-        </div>
+        <section className="order card">
+          <header className="card-head">
+            <div>
+              <span className="eyebrow">Current order</span>
+              <h3 className="display">
+                {itemCount} item{itemCount === 1 ? '' : 's'} <span className="muted">· {cart.length} product{cart.length === 1 ? '' : 's'}</span>
+              </h3>
+            </div>
+            {cart.length > 0 && (
+              <button className="btn btn-ghost btn-xs" onClick={clearCart}>
+                <Trash2 size={13} /> Clear
+              </button>
+            )}
+          </header>
 
-        <div className="tiles">
-          {filtered.slice(0, 120).map((p) => (
-            <button
-              key={p.id}
-              className={`tile ${p.stock <= 0 ? 'disabled' : ''} ${bump === p.id ? 'bump' : ''}`}
-              onClick={() => add(p)}
-              disabled={p.stock <= 0}
-            >
-              {p.image_url ? (
-                <span className="tile-photo">
-                  <img className="tile-img" src={p.image_url} alt="" loading="lazy" />
-                </span>
-              ) : (
-                <span className="tile-letter display">{p.name[0]}</span>
-              )}
-              <span className="tile-name">{p.name}</span>
-              <span className="tile-foot">
-                <b>{fmtMoney(p.price)}</b>
-                <small className={p.stock <= p.low_stock_threshold ? 'warn' : ''}>
-                  {p.stock <= 0 ? 'sold out' : `${p.stock} left`}
-                </small>
-              </span>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <div className="empty wide">
-              <Search size={30} strokeWidth={1.2} />
-              <p>No matching products.</p>
+          {cart.length === 0 ? (
+            <div className="empty">
+              <ShoppingBag size={36} strokeWidth={1.1} />
+              <p>Scan a barcode or type a word code above to start the order.</p>
+            </div>
+          ) : (
+            <div className="order-lines">
+              <div className="order-row order-headrow">
+                <span>#</span>
+                <span>Product</span>
+                <span className="num">Price</span>
+                <span className="center">Qty</span>
+                <span className="num">Amount</span>
+                <span />
+              </div>
+              {cart.map((l, i) => (
+                <div key={l.product.id} className={`order-row row-in ${flash === l.product.id ? 'flash' : ''}`}>
+                  <span className="muted">{i + 1}</span>
+                  <span className="ol-name">
+                    <strong>{l.product.name}</strong>
+                    <span className="mono small muted">
+                      {l.product.word_code ?? l.product.barcode} · {l.product.stock} in stock
+                    </span>
+                  </span>
+                  <span className="num">{fmtMoney(l.product.price)}</span>
+                  <span className="center">
+                    <span className="qty">
+                      <button onClick={() => (l.quantity <= 1 ? removeLine(l) : setQty(l.product.id, l.quantity - 1))} aria-label="Less">
+                        <Minus size={13} />
+                      </button>
+                      <input value={l.quantity} inputMode="numeric" onChange={(e) => setQty(l.product.id, Number(e.target.value))} />
+                      <button onClick={() => setQty(l.product.id, l.quantity + 1)} disabled={l.quantity >= l.product.stock} aria-label="More">
+                        <Plus size={13} />
+                      </button>
+                    </span>
+                  </span>
+                  <b className="num">{fmtMoney(l.product.price * l.quantity)}</b>
+                  <button className="icon-btn danger" onClick={() => removeLine(l)} aria-label="Remove">
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
-        </div>
+        </section>
       </section>
 
       <aside className="pos-cart">
         <header className="cart-head">
           <h2 className="display">
-            Order <em>{itemCount}</em>
+            Payment <em>{itemCount}</em>
           </h2>
-          {cart.length > 0 && (
-            <button className="btn btn-ghost btn-xs" onClick={clearCart}>
-              <Trash2 size={13} /> Clear
-            </button>
-          )}
         </header>
-
-        <div className="cart-lines">
-          {cart.length === 0 ? (
-            <div className="empty cart-empty">
-              <ShoppingBag size={34} strokeWidth={1.1} />
-              <p>Scan or tap a product to begin.</p>
-            </div>
-          ) : (
-            cart.map((l) => (
-              <div key={l.product.id} className={`cart-line ${bump === l.product.id ? 'flash' : ''}`}>
-                <div className="cl-info">
-                  <strong>{l.product.name}</strong>
-                  <span className="muted small">{fmtMoney(l.product.price)} / {l.product.unit}</span>
-                </div>
-                <div className="qty">
-                  <button onClick={() => setQty(l.product.id, l.quantity - 1)} aria-label="Less">
-                    <Minus size={13} />
-                  </button>
-                  <input
-                    value={l.quantity}
-                    inputMode="numeric"
-                    onChange={(e) => setQty(l.product.id, Math.trunc(Number(e.target.value) || 0))}
-                  />
-                  <button onClick={() => setQty(l.product.id, l.quantity + 1)} aria-label="More">
-                    <Plus size={13} />
-                  </button>
-                </div>
-                <b className="cl-total">{fmtMoney(l.product.price * l.quantity)}</b>
-              </div>
-            ))
-          )}
-        </div>
 
         <div className="cart-summary">
           <div className="sum-row">
@@ -330,16 +476,27 @@ export default function PosPage() {
             <b className="display">{fmtMoney(total)}</b>
           </div>
 
-          <div className="seg seg-3">
-            {(['cash', 'gcash', 'card'] as const).map((m) => (
-              <button key={m} className={method === m ? 'on' : ''} onClick={() => setMethod(m)}>
-                {m === 'gcash' ? 'E-wallet' : m[0]!.toUpperCase() + m.slice(1)}
-              </button>
-            ))}
-            <i className="seg-pill" style={{ transform: `translateX(${['cash', 'gcash', 'card'].indexOf(method) * 100}%)` }} />
+          <div className="methods">
+            {methods.map((m) => {
+              const ok = available(m.key);
+              return (
+                <button
+                  key={m.key}
+                  className={`method ${method === m.key ? 'on' : ''}`}
+                  disabled={!ok}
+                  onClick={() => setMethod(m.key)}
+                  title={ok ? m.label : `${m.label} unavailable — no account added yet`}
+                >
+                  <span className="method-top">
+                    {m.icon} {m.label}
+                  </span>
+                  {!ok && <small>Unavailable</small>}
+                </button>
+              );
+            })}
           </div>
 
-          {method === 'cash' && (
+          {method === 'cash' ? (
             <>
               <div className="sum-row">
                 <span>Cash received</span>
@@ -357,14 +514,46 @@ export default function PosPage() {
                 <b>{paid ? fmtMoney(change) : '—'}</b>
               </div>
             </>
+          ) : (
+            <div className="acct-pick reveal">
+              <span className="eyebrow">Pay to</span>
+              {byKind[method].map((a) => (
+                <div key={a.id} className={`acct-opt ${account?.id === a.id ? 'on' : ''}`} onClick={() => setAccount(a)}>
+                  <span className="acct-ico">{kindIcon(a.kind, 16, a.provider)}</span>
+                  <span className="grow">
+                    <strong>{a.provider}</strong>
+                    <span className="muted small">
+                      {a.account_name} · <span className="mono">{maskNumber(a.account_number)}</span>
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAccount(a);
+                      setShowAccount(a);
+                    }}
+                  >
+                    <QrCode size={13} /> Show
+                  </button>
+                </div>
+              ))}
+              <label className="field">
+                <span>Reference no. (from customer's receipt)</span>
+                <input className="input mono" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. 1009 234 567" />
+              </label>
+            </div>
           )}
 
           <button className="btn btn-primary btn-block btn-lg checkout" disabled={!cart.length || busy} onClick={checkout}>
-            {busy ? <Loader2 size={17} className="spin" /> : null}
+            {busy && <Loader2 size={17} className="spin" />}
             Charge {fmtMoney(total)}
           </button>
         </div>
       </aside>
+
+      <PaymentAccountCard account={showAccount} amount={fmtMoney(total)} onClose={() => setShowAccount(null)} />
 
       <ProductForm
         open={!!newCode}
@@ -410,10 +599,16 @@ export default function PosPage() {
                 <path d="M15 27 l7 7 l15 -16" />
               </svg>
             </div>
-            {receipt.method === 'cash' && (
+            {receipt.method === 'cash' ? (
               <div className="change-big">
                 <span className="eyebrow">Change due</span>
                 <b className="display">{fmtMoney(receipt.change)}</b>
+              </div>
+            ) : (
+              <div className="change-big">
+                <span className="eyebrow">Paid via {methodLabel(receipt.method)}</span>
+                <b className="display" style={{ fontSize: 28 }}>{receipt.account}</b>
+                {receipt.ref && <span className="mono small muted">Ref {receipt.ref}</span>}
               </div>
             )}
             <div className="receipt-lines">
@@ -443,10 +638,25 @@ export default function PosPage() {
   );
 }
 
-function printReceipt(r: SaleResult & { lines: CartLine[]; at: string; method: string }, cashier: string) {
+/** Highlights the part of `text` that matches the query. */
+function Mark({ text, q }: { text: string; q: string }) {
+  const query = q.trim();
+  const i = query ? text.toLowerCase().indexOf(query.toLowerCase()) : -1;
+  if (i === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark>{text.slice(i, i + query.length)}</mark>
+      {text.slice(i + query.length)}
+    </>
+  );
+}
+
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+function printReceipt(r: Receipt, cashier: string) {
   const w = window.open('', '_blank', 'width=380,height=640');
   if (!w) return;
-  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   w.document.write(`<!doctype html><html><head><title>${r.receipt_no}</title><style>
     @page { size: 58mm auto; margin: 2mm; }
     body { font: 10pt 'DM Mono', ui-monospace, monospace; width: 54mm; margin: 0 auto; color: #000; }
@@ -460,8 +670,10 @@ function printReceipt(r: SaleResult & { lines: CartLine[]; at: string; method: s
     <hr/><div class="r"><span>Subtotal</span><span>${esc(fmtMoney(r.subtotal))}</span></div>
     ${r.discount > 0 ? `<div class="r"><span>Discount</span><span>-${esc(fmtMoney(r.discount))}</span></div>` : ''}
     <div class="r b"><span>TOTAL</span><span>${esc(fmtMoney(r.total))}</span></div>
-    <div class="r"><span>${esc(r.method.toUpperCase())}</span><span>${esc(fmtMoney(r.amount_paid))}</span></div>
-    <div class="r"><span>Change</span><span>${esc(fmtMoney(r.change))}</span></div>
+    <div class="r"><span>${esc(methodLabel(r.method).toUpperCase())}</span><span>${esc(fmtMoney(r.amount_paid))}</span></div>
+    ${r.method === 'cash' ? `<div class="r"><span>Change</span><span>${esc(fmtMoney(r.change))}</span></div>` : ''}
+    ${r.account ? `<div>${esc(r.account)}</div>` : ''}
+    ${r.ref ? `<div>Ref: ${esc(r.ref)}</div>` : ''}
     <hr/><div class="c">Thank you, come again!</div>
     <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),300)}<\/script>
   </body></html>`);

@@ -3,7 +3,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Recei
 import { useAuth } from '../context/AuthContext';
 import { supabase, errorMessage } from '../lib/supabase';
 import { confirmAction, failure, success } from '../lib/alerts';
-import { fmtDate, fmtMoney } from '../lib/format';
+import { fmtDate, fmtMoney, methodLabel } from '../lib/format';
 import { getPeriod, type PeriodType } from '../lib/period';
 import { summarise } from '../lib/salesReport';
 import type { Sale } from '../lib/types';
@@ -197,7 +197,7 @@ export default function SalesPage() {
                     <td className="small">{fmtDate(sale.created_at)}</td>
                     {isAdmin && <td>{sale.cashier?.full_name ?? '—'}</td>}
                     <td>
-                      <span className="tag">{sale.payment_method === 'gcash' ? 'e-wallet' : sale.payment_method}</span>
+                      <span className="tag">{methodLabel(sale.payment_method)}</span>
                     </td>
                     <td className="num">
                       <b>{fmtMoney(sale.total)}</b>
@@ -225,7 +225,7 @@ export default function SalesPage() {
                             </div>
                           )}
                           <div className="muted">
-                            <span>Paid / change</span>
+                            <span>{sale.payment_account ? `${sale.payment_account}${sale.payment_ref ? ` · Ref ${sale.payment_ref}` : ''}` : 'Paid / change'}</span>
                             <span>
                               {fmtMoney(sale.amount_paid)} / {fmtMoney(sale.change_due)}
                             </span>

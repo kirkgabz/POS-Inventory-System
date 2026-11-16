@@ -10,6 +10,7 @@ import {
   ScanLine,
   ShieldCheck,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -32,6 +33,7 @@ export default function Layout() {
     { to: '/products', label: 'Inventory', icon: Package, show: true },
     { to: '/sales', label: 'Sales', icon: ReceiptText, show: true },
     { to: '/staff', label: 'Staff & Access', icon: Users, show: isAdmin },
+    { to: '/payments', label: 'Payment accounts', icon: Wallet, show: isAdmin },
     { to: '/notifications', label: 'Notifications', icon: Bell, show: isAdmin, badge: unread },
   ];
 

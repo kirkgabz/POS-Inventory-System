@@ -33,3 +33,7 @@ export const initials = (name: string) =>
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join('') || '?';
+
+/** Human label for a stored payment method (older sales used 'gcash' / 'card'). */
+export const methodLabel = (m: string) =>
+  ({ cash: 'Cash', ewallet: 'E-wallet', gcash: 'E-wallet', bank: 'Bank / Card', card: 'Bank / Card' } as Record<string, string>)[m] ?? m;

@@ -11,6 +11,7 @@ import ProductsPage from './pages/ProductsPage';
 import SalesPage from './pages/SalesPage';
 import StaffPage from './pages/StaffPage';
 import NotificationsPage from './pages/NotificationsPage';
+import PaymentsPage from './pages/PaymentsPage';
 import type { ReactNode } from 'react';
 
 function Splash() {
@@ -59,6 +60,7 @@ function Gate() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="staff" element={<AdminOnly><StaffPage /></AdminOnly>} />
+          <Route path="payments" element={<AdminOnly><PaymentsPage /></AdminOnly>} />
           <Route path="notifications" element={<AdminOnly><NotificationsPage /></AdminOnly>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

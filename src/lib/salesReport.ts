@@ -1,6 +1,6 @@
 import type { Sale } from './types';
 import { buckets, type Period } from './period';
-import { STORE_NAME } from './format';
+import { STORE_NAME, methodLabel } from './format';
 
 export interface SalesSummary {
   revenue: number;
@@ -163,7 +163,7 @@ export async function downloadSalesExcel(sales: Sale[], period: Period, generate
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INK } };
   });
   s.byMethod.forEach((m, i) => {
-    sum.getCell(6 + i, 5).value = m.method === 'gcash' ? 'E-wallet' : m.method[0]!.toUpperCase() + m.method.slice(1);
+    sum.getCell(6 + i, 5).value = methodLabel(m.method);
     sum.getCell(6 + i, 6).value = m.count;
     sum.getCell(6 + i, 7).value = m.total;
     sum.getCell(6 + i, 7).numFmt = PESO;
@@ -210,9 +210,10 @@ export async function downloadSalesExcel(sales: Sale[], period: Period, generate
   tx.columns = [
     { width: 18 }, { width: 13 }, { width: 10 }, { width: 22 }, { width: 12 },
     { width: 8 }, { width: 14 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 12 },
+    { width: 28 }, { width: 20 },
   ];
-  title(tx, `${STORE_NAME} — Transactions`, 11);
-  tx.getRow(4).values = ['Receipt', 'Date', 'Time', 'Cashier', 'Payment', 'Items', 'Subtotal', 'Discount', 'Total', 'Paid', 'Change'];
+  title(tx, `${STORE_NAME} — Transactions`, 13);
+  tx.getRow(4).values = ['Receipt', 'Date', 'Time', 'Cashier', 'Payment', 'Items', 'Subtotal', 'Discount', 'Total', 'Paid', 'Change', 'Account', 'Reference'];
   headerRow(tx, 4);
   [...sales]
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -224,18 +225,20 @@ export async function downloadSalesExcel(sales: Sale[], period: Period, generate
         d.toLocaleDateString(),
         d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
         sale.cashier?.full_name ?? '—',
-        sale.payment_method === 'gcash' ? 'E-wallet' : sale.payment_method,
+        methodLabel(sale.payment_method),
         (sale.sale_items ?? []).reduce((a, it) => a + it.quantity, 0),
         Number(sale.subtotal),
         Number(sale.discount),
         Number(sale.total),
         Number(sale.amount_paid),
         Number(sale.change_due),
+        sale.payment_account ?? '',
+        sale.payment_ref ?? '',
       ];
       [7, 8, 9, 10, 11].forEach((c) => (r.getCell(c).numFmt = PESO));
     });
   if (sales.length) {
-    tx.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + sales.length, column: 11 } };
+    tx.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + sales.length, column: 13 } };
     const tr = 5 + sales.length;
     tx.getRow(tr).values = ['Total', '', '', '', '', s.items, s.revenue + s.discounts, s.discounts, s.revenue];
     [7, 8, 9].forEach((c) => (tx.getRow(tr).getCell(c).numFmt = PESO));
