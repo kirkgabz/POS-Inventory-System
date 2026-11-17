@@ -3,7 +3,8 @@ import { ArrowRight, KeyRound, Loader2, MailCheck, RotateCw, ShieldCheck } from 
 import { useAuth } from '../context/AuthContext';
 import { errorMessage, supabase } from '../lib/supabase';
 import { confirmAction, failure, success } from '../lib/alerts';
-import { BRAND, BRAND_INITIAL } from '../lib/format';
+import { BRAND } from '../lib/format';
+import { LogoMark } from '../components/Logo';
 import { clearOAuthIntent } from '../lib/oauth';
 import './signin.css';
 
@@ -116,7 +117,7 @@ export default function OwnerSetupPage() {
       </div>
       <main className="signin-main">
         <header className="signin-brand">
-          <span className="signin-mark">{BRAND_INITIAL}</span>
+          <LogoMark size={54} className="signin-logo" />
           <div>
             <div className="signin-name">
               {BRAND.first}

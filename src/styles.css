@@ -873,3 +873,33 @@ body::before { opacity: 0.18; }
 .dtr-rule-row.on { border-color: rgba(122, 111, 240, 0.45); background: var(--accent-soft); }
 .dtr-rule-ico { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--card); color: var(--ink-2); flex-shrink: 0; }
 .dtr-rule-row.on .dtr-rule-ico { color: #4d43c9; }
+
+/* =====================================================================
+   TapBenta logo + loader
+   ===================================================================== */
+.tb-logo { display: block; flex-shrink: 0; border-radius: 28%; }
+.tb-logo .tb-tag, .tb-logo .tb-waves path { transform-box: view-box; }
+.tb-logo.is-animated .tb-tag { transform-origin: 32px 20px; animation: tb-sway 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }
+.tb-logo.is-animated .w1, .tb-logo.is-animated .w2 { transform-origin: 32px 20px; animation: tb-wave 1.6s ease-out infinite; }
+.tb-logo.is-animated .w2 { animation-delay: 0.25s; }
+@keyframes tb-sway { from { transform: rotate(-16deg); } to { transform: rotate(-3deg); } }
+@keyframes tb-wave {
+  0% { opacity: 0; transform: scale(0.75); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+.tb-loader { display: grid; justify-items: center; gap: 14px; }
+.tb-loader .tb-logo { box-shadow: 0 18px 40px -16px rgba(20, 20, 20, 0.55); animation: tb-breathe 1.6s ease-in-out infinite; }
+@keyframes tb-breathe { 50% { transform: translateY(-3px); } }
+.tb-loader-label { font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-3); }
+.tb-lockup { display: inline-flex; align-items: center; gap: 12px; }
+.tb-lockup-text { display: grid; gap: 2px; }
+.tb-word { font: 400 22px/1 var(--serif); letter-spacing: -0.02em; }
+.tb-word em { font-style: italic; color: var(--accent); }
+.tb-lockup-tag { font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-3); }
+@media (prefers-reduced-motion: reduce) {
+  .tb-logo.is-animated .tb-tag, .tb-logo.is-animated .w1, .tb-logo.is-animated .w2, .tb-loader .tb-logo { animation: none; }
+}
+
+.signin-logo { box-shadow: 0 14px 30px -14px rgba(23, 20, 15, 0.6); }
+.brand .tb-logo { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08); }

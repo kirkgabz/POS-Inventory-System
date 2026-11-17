@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Link2, Loader2, Lock, Mail, Play, Store, User, UserRound, XCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Link2, Loader2, Lock, Mail, Store, User, UserRound, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { enabledProviders, errorMessage, isSupabaseConfigured, rememberMe, supabase } from '../lib/supabase';
 import { confirmAction, failure, info, promptValue, success } from '../lib/alerts';
-import { BRAND, BRAND_INITIAL, STORE_NAME } from '../lib/format';
+import { BRAND, STORE_NAME } from '../lib/format';
+import { LogoMark } from '../components/Logo';
 import StoreIntro from '../components/StoreIntro';
 import { continueWithGoogle, type OAuthIntent } from '../lib/oauth';
 import { checkInvite, inviteReasonText, parseInvite, type InviteCheck } from '../lib/invites';
@@ -183,7 +184,7 @@ export default function AuthPage() {
 
         <main className="signin-main">
           <header className="signin-brand">
-            <span className="signin-mark">{BRAND_INITIAL}</span>
+            <LogoMark size={54} className="signin-logo" />
             <div>
               <div className="signin-name">
                 {BRAND.first}
@@ -366,9 +367,6 @@ export default function AuthPage() {
           </form>
 
           <footer className="signin-foot">
-            <button type="button" onClick={() => setIntro(true)}>
-              <Play size={12} /> Replay intro
-            </button>
             <span>
               © {new Date().getFullYear()} {STORE_NAME}
             </span>

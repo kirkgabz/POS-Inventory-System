@@ -3,7 +3,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { useEffect } from 'react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { BRAND_INITIAL, STORE_NAME } from './lib/format';
+import { STORE_NAME } from './lib/format';
+import { LogoLoader } from './components/Logo';
 import { failure } from './lib/alerts';
 import { clearOAuthIntent, getOAuthIntent } from './lib/oauth';
 import OwnerSetupPage from './pages/OwnerSetupPage';
@@ -24,10 +25,7 @@ import type { ReactNode } from 'react';
 function Splash() {
   return (
     <div className="center-screen">
-      <div className="splash">
-        <span className="brand-mark lg">{BRAND_INITIAL}</span>
-        <div className="splash-bar" />
-      </div>
+      <LogoLoader size={76} />
     </div>
   );
 }

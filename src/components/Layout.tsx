@@ -18,7 +18,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { confirmAction, toast } from '../lib/alerts';
-import { BRAND, BRAND_INITIAL, initials } from '../lib/format';
+import { BRAND, initials } from '../lib/format';
+import { LogoMark } from './Logo';
 import NotificationCards from './NotificationCards';
 
 export default function Layout() {
@@ -57,7 +58,7 @@ export default function Layout() {
 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="brand">
-          <span className="brand-mark">{BRAND_INITIAL}</span>
+          <LogoMark size={42} />
           <div>
             <div className="brand-name display">
               {BRAND.first}
