@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Bell,
+  Clock3,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -32,6 +33,7 @@ export default function Layout() {
     { to: '/pos', label: 'Point of Sale', icon: ScanLine, show: true },
     { to: '/products', label: 'Inventory', icon: Package, show: true },
     { to: '/sales', label: 'Sales', icon: ReceiptText, show: true },
+    { to: '/dtr', label: 'Time clock', icon: Clock3, show: true },
     { to: '/staff', label: 'Staff & Access', icon: Users, show: isAdmin },
     { to: '/payments', label: 'Payment accounts', icon: Wallet, show: isAdmin },
     { to: '/notifications', label: 'Notifications', icon: Bell, show: isAdmin, badge: unread },

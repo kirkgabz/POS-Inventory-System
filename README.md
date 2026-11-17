@@ -50,6 +50,12 @@ TapBenta is a web-based point of sale and inventory system.
 - Every add, price change, edit or stock adjustment made by staff creates a **notification for all admins**. This is done by a database trigger, so it can't be skipped from the app.
 - Admins see a live **pop-up card** with the details (e.g. ₱45 → ₱50) and a full *Notifications* page.
 
+### Time clock (DTR)
+- Everyone gets a **Time clock** page: live clock, big **Time in / Time out** button, hours worked today/this week and recent records.
+- Times are stamped by the **server**, not the device, so changing the phone/PC clock does nothing.
+- **Face ID (optional or required):** a live face scan with a **blink check** (a printed photo won't pass). Each person enrols once; only the store owner can reset it. The match is decided in the database — the browser only sends a 128-number face descriptor and no photos are stored.
+- The **store owner** chooses *Required* or *Optional* face verification and the match strictness, sees who is **on the clock now**, browses the time log by day/week/month, corrects records (e.g. forgot to time out) and downloads a **DTR Excel** (summary + full log).
+
 ### Sales & reports
 - Sales page with **Day / Week / Month / Year** periods, previous/next navigation, a revenue chart and an expandable transaction list. Staff see only their own sales; admins see everything.
 - **Download Excel** (admin) creates a workbook with four sheets:
@@ -94,6 +100,7 @@ In **SQL Editor**, run these files **in order**:
 3. [`supabase/migrations/003_payment_accounts.sql`](supabase/migrations/003_payment_accounts.sql)
 4. [`supabase/migrations/004_staff_invitations.sql`](supabase/migrations/004_staff_invitations.sql)
 5. [`supabase/migrations/005_google_owner_signup.sql`](supabase/migrations/005_google_owner_signup.sql)
+6. [`supabase/migrations/006_time_clock.sql`](supabase/migrations/006_time_clock.sql)
 
 Then, under **Authentication**:
 - **Sign In / Providers → Google:** turn on and paste the Google OAuth client ID/secret (Google Cloud Console → Credentials; authorised redirect URI = `https://<project-ref>.supabase.co/auth/v1/callback`).
@@ -154,5 +161,7 @@ Sign up: the first account becomes the store owner.
 | `payment_accounts` | active users | admins |
 | `notifications` | recipient only | created by triggers; recipient can mark read / delete |
 | `staff_invites` | store owner (plus a public validity check for the sign-up page) | store owner |
-| `app_settings` (store owner key) | store owner | store owner |
+| `attendance` | own records · store owner: all | only through `clock_in()` / `clock_out()` · store owner can correct |
+| `face_profiles` | nobody (no read policy) | only through `enroll_face()` / `reset_face()` |
+| `app_settings` (store owner key, DTR settings) | store owner | store owner |
 | storage `product-images` | public URLs | upload/update/delete: admin or authorized staff |

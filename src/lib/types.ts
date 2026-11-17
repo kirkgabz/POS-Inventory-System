@@ -128,3 +128,28 @@ export interface StaffInvite {
   created_at: string;
   used_profile?: { full_name: string; email: string | null } | null;
 }
+
+export interface Attendance {
+  id: string;
+  user_id: string;
+  work_date: string;
+  time_in: string;
+  time_out: string | null;
+  method_in: 'manual' | 'face';
+  method_out: 'manual' | 'face' | 'owner' | null;
+  distance_in: number | null;
+  distance_out: number | null;
+  note: string | null;
+  edited_by: string | null;
+  created_at: string;
+  person?: { full_name: string; email: string | null } | null;
+}
+
+export interface DtrStatus {
+  face_required: boolean;
+  threshold: number;
+  timezone: string;
+  enrolled: boolean;
+  server_now: string;
+  open: Attendance | null;
+}
