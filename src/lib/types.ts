@@ -146,6 +146,8 @@ export interface Attendance {
 }
 
 export interface DtrStatus {
+  face_in: boolean;
+  face_out: boolean;
   face_required: boolean;
   threshold: number;
   timezone: string;

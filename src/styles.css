@@ -863,3 +863,13 @@ body::before { opacity: 0.18; }
   .rcpt { grid-template-columns: 1fr; }
   .rcpt-preview { position: static; }
 }
+
+/* owner DTR monitoring */
+.dtr-owner-clock { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--line-soft); box-shadow: var(--shadow); font-size: 13.5px; color: var(--ink-2); }
+.dtr-owner-clock b { font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dtr-face-rules { display: grid; gap: 10px; }
+.dtr-rule-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r); border: 1px solid var(--line-soft); background: var(--paper); cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.dtr-rule-row .grow { display: grid; }
+.dtr-rule-row.on { border-color: rgba(122, 111, 240, 0.45); background: var(--accent-soft); }
+.dtr-rule-ico { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--card); color: var(--ink-2); flex-shrink: 0; }
+.dtr-rule-row.on .dtr-rule-ico { color: #4d43c9; }

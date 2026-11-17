@@ -57,10 +57,10 @@ TapBenta is a web-based point of sale and inventory system.
 - Admins see a live **pop-up card** with the details (e.g. ₱45 → ₱50) and a full *Notifications* page.
 
 ### Time clock (DTR)
-- Everyone gets a **Time clock** page: live clock, big **Time in / Time out** button, hours worked today/this week and recent records.
+- **Staff** get a **Time clock** page: live clock, big **Time in / Time out** button, hours worked this week and recent records. **Store owners don't clock in** — they get a monitoring view instead.
 - Times are stamped by the **server**, not the device, so changing the phone/PC clock does nothing.
 - **Face ID (optional or required):** a live face scan with a **blink check** (a printed photo won't pass). Each person enrols once; only the store owner can reset it. The match is decided in the database — the browser only sends a 128-number face descriptor and no photos are stored.
-- The **store owner** chooses *Required* or *Optional* face verification and the match strictness, sees who is **on the clock now**, browses the time log by day/week/month, corrects records (e.g. forgot to time out) and downloads a **DTR Excel** (summary + full log).
+- The **store owner** sets face verification separately for **time in** and **time out** (required or optional) plus the match strictness, sees who is **on the clock now**, browses the time log by day/week/month, corrects records (e.g. forgot to time out) and downloads a **DTR Excel** (summary + full log).
 
 ### Sales & reports
 - Sales page with **Day / Week / Month / Year** periods, previous/next navigation, a revenue chart and an expandable transaction list. Staff see only their own sales; admins see everything.
@@ -108,6 +108,7 @@ In **SQL Editor**, run these files **in order**:
 5. [`supabase/migrations/005_google_owner_signup.sql`](supabase/migrations/005_google_owner_signup.sql)
 6. [`supabase/migrations/006_time_clock.sql`](supabase/migrations/006_time_clock.sql)
 7. [`supabase/migrations/007_receipt_settings.sql`](supabase/migrations/007_receipt_settings.sql)
+8. [`supabase/migrations/008_owner_dtr_monitoring.sql`](supabase/migrations/008_owner_dtr_monitoring.sql)
 
 Then, under **Authentication**:
 - **Sign In / Providers → Google:** turn on and paste the Google OAuth client ID/secret (Google Cloud Console → Credentials; authorised redirect URI = `https://<project-ref>.supabase.co/auth/v1/callback`).

@@ -26,8 +26,14 @@ import type { Attendance, DtrStatus, Profile } from '../lib/types';
 
 type ScanPurpose = 'enroll' | 'in' | 'out';
 
+/** Staff clock in/out; store owners only monitor their staff. */
 export default function DtrPage() {
-  const { profile, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
+  return isAdmin ? <OwnerDtr /> : <StaffDtr />;
+}
+
+function StaffDtr() {
+  const { profile } = useAuth();
   const [status, setStatus] = useState<DtrStatus | null>(null);
   const [offset, setOffset] = useState(0); // server - device clock (ms)
   const [now, setNow] = useState(Date.now());
@@ -175,7 +181,7 @@ export default function DtrPage() {
               )}
 
               <div className="dtr-actions">
-                {status.face_required ? (
+                {(open ? status.face_out : status.face_in) ? (
                   <button className={`dtr-btn ${open ? 'out' : 'in'}`} disabled={busy} onClick={() => start(open ? 'out' : 'in', true)}>
                     <ScanFace size={22} />
                     <span>{open ? 'Time out' : 'Time in'}</span>
@@ -197,9 +203,10 @@ export default function DtrPage() {
               </div>
 
               <p className="dtr-rule">
-                {status.face_required ? (
+                {status.face_in || status.face_out ? (
                   <>
-                    <ShieldCheck size={14} /> The store owner requires <b>live face verification</b>.
+                    <ShieldCheck size={14} /> Live face verification is required to{' '}
+                    <b>{status.face_in && status.face_out ? 'time in and out' : status.face_in ? 'time in' : 'time out'}</b>.
                   </>
                 ) : (
                   <>
@@ -247,8 +254,6 @@ export default function DtrPage() {
         </section>
       </div>
 
-      {isAdmin && <OwnerPanel tz={tz} serverNow={serverNow} faceRequired={!!status?.face_required} threshold={status?.threshold ?? 0.5} onSettings={load} />}
-
       {scan && (
         <FaceScanner
           mode={scan === 'enroll' ? 'enroll' : 'verify'}
@@ -264,7 +269,55 @@ export default function DtrPage() {
 
 /* =================================================================== */
 
-function OwnerPanel({ tz, serverNow, faceRequired, threshold, onSettings }: { tz: string; serverNow: number; faceRequired: boolean; threshold: number; onSettings: () => void }) {
+/** Store owner: monitor staff DTR + biometric settings (owners never clock in). */
+function OwnerDtr() {
+  const [status, setStatus] = useState<DtrStatus | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  const load = useCallback(async () => {
+    const t0 = Date.now();
+    const { data, error } = await supabase.rpc('dtr_status');
+    if (error) return failure('Could not load the time clock', errorMessage(error));
+    const s = data as DtrStatus;
+    setOffset(new Date(s.server_now).getTime() - (t0 + Date.now()) / 2);
+    setStatus(s);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const tz = status?.timezone ?? 'Asia/Manila';
+  const serverNow = now + offset;
+
+  return (
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Store owner · monitoring</span>
+          <h1 className="display">Staff time clock</h1>
+        </div>
+        <div className="dtr-owner-clock">
+          <Clock3 size={16} />
+          <span>
+            {new Date(serverNow).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz })}
+          </span>
+          <b className="mono">{new Date(serverNow).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone: tz })}</b>
+        </div>
+      </header>
+      {!status ? (
+        <div className="skeleton" style={{ height: 260 }} />
+      ) : (
+        <OwnerPanel tz={tz} serverNow={serverNow} faceIn={status.face_in} faceOut={status.face_out} threshold={status.threshold} onSettings={load} />
+      )}
+    </div>
+  );
+}
+
+function OwnerPanel({ tz, serverNow, faceIn, faceOut, threshold, onSettings }: { tz: string; serverNow: number; faceIn: boolean; faceOut: boolean; threshold: number; onSettings: () => void }) {
   const [type, setType] = useState<PeriodType>('day');
   const [off, setOff] = useState(0);
   const [rows, setRows] = useState<Attendance[]>([]);
@@ -273,6 +326,7 @@ function OwnerPanel({ tz, serverNow, faceRequired, threshold, onSettings }: { tz
   const [enrolled, setEnrolled] = useState<Record<string, string>>({});
   const [who, setWho] = useState('');
   const [editing, setEditing] = useState<Attendance | null>(null);
+  const [today, setToday] = useState<Attendance[]>([]);
   const [v, setV] = useState(0);
   const period = useMemo(() => getPeriod(type, off), [type, off]);
 
@@ -284,12 +338,14 @@ function OwnerPanel({ tz, serverNow, faceRequired, threshold, onSettings }: { tz
     Promise.all([
       supabase.from('attendance').select(sel).gte('time_in', period.start.toISOString()).lt('time_in', period.end.toISOString()).order('time_in', { ascending: false }).limit(2000),
       supabase.from('attendance').select(sel).is('time_out', null).order('time_in'),
-      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('profiles').select('*').eq('role', 'staff').order('full_name'),
       supabase.rpc('face_enrollments'),
-    ]).then(([a, o, p, f]) => {
+      supabase.from('attendance').select('*').gte('time_in', getPeriod('day', 0).start.toISOString()),
+    ]).then(([a, o, p, f, t]) => {
       setRows((a.data as Attendance[]) ?? []);
       setOpenNow((o.data as Attendance[]) ?? []);
       setPeople((p.data as Profile[]) ?? []);
+      setToday((t.data as Attendance[]) ?? []);
       setEnrolled(Object.fromEntries(((f.data as { user_id: string; enrolled_at: string }[]) ?? []).map((x) => [x.user_id, x.enrolled_at])));
     });
   }, [period, v]);
@@ -307,7 +363,23 @@ function OwnerPanel({ tz, serverNow, faceRequired, threshold, onSettings }: { tz
   const shown = who ? rows.filter((r) => r.user_id === who) : rows;
   const total = shown.reduce((s, r) => s + (r.time_out ? hoursOf(r) : 0), 0);
 
-  const setSetting = async (patch: { dtr_face_required?: boolean; dtr_face_threshold?: number }, confirm: { title: string; html: string; confirmText: string; danger?: boolean }, done: string) => {
+  const presentToday = new Set(today.map((a) => a.user_id)).size;
+  const hoursToday = today.reduce((s, a) => s + hoursOf(a, serverNow), 0);
+  const forgot = openNow.filter((a) => new Date(a.time_in).toDateString() !== new Date(serverNow).toDateString()).length;
+
+  const toggleFace = (kind: 'in' | 'out') => {
+    const on = kind === 'in' ? faceIn : faceOut;
+    const word = kind === 'in' ? 'time in' : 'time out';
+    setSetting(
+      kind === 'in' ? { dtr_face_in: !on } : { dtr_face_out: !on },
+      on
+        ? { title: `Allow manual ${word}?`, html: `Staff will be able to ${word} with a button. Face verification stays optional.`, confirmText: 'Allow manual', danger: true }
+        : { title: `Require face to ${word}?`, html: `Staff must pass a <b>live face scan</b> (with a blink check) every time they ${word}.<br/><small>Staff without Face ID will be asked to set it up first.</small>`, confirmText: 'Require face' },
+      on ? `Manual ${word} allowed` : `Face required to ${word}`,
+    );
+  };
+
+  const setSetting = async (patch: { dtr_face_in?: boolean; dtr_face_out?: boolean; dtr_face_threshold?: number }, confirm: { title: string; html: string; confirmText: string; danger?: boolean }, done: string) => {
     if (!(await confirmAction(confirm))) return;
     const { error } = await supabase.from('app_settings').update(patch).eq('id', 1);
     if (error) return failure('Could not save', errorMessage(error));
@@ -346,34 +418,54 @@ function OwnerPanel({ tz, serverNow, faceRequired, threshold, onSettings }: { tz
 
   return (
     <>
+      <div className="stats">
+        <div className="stat accent">
+          <span className="eyebrow">On the clock now</span>
+          <b className="display stat-value">{openNow.length}</b>
+        </div>
+        <div className="stat">
+          <span className="eyebrow">Staff in today</span>
+          <b className="display stat-value">
+            {presentToday} <small className="muted">/ {people.filter((p) => p.is_active).length}</small>
+          </b>
+        </div>
+        <div className="stat">
+          <span className="eyebrow">Hours today</span>
+          <b className="display stat-value">{fmtHours(hoursToday)}</b>
+        </div>
+        <div className={`stat ${forgot ? 'warn' : ''}`}>
+          <span className="eyebrow">Forgot to time out</span>
+          <b className="display stat-value">{forgot}</b>
+        </div>
+      </div>
+
       <div className="dtr-owner-grid">
         <section className="card">
           <header className="card-head">
             <div>
-              <span className="eyebrow">Store owner · setting</span>
+              <span className="eyebrow">Biometrics · setting</span>
               <h3 className="display">Face verification</h3>
             </div>
             <ShieldCheck size={18} className="muted" />
           </header>
-          <label className="switch dtr-switch">
-            <input
-              type="checkbox"
-              checked={faceRequired}
-              onChange={() =>
-                setSetting(
-                  { dtr_face_required: !faceRequired },
-                  faceRequired
-                    ? { title: 'Allow manual time in?', html: 'Staff will be able to time in and out with a button. Face verification stays optional.', confirmText: 'Allow manual', danger: true }
-                    : { title: 'Require live face verification?', html: 'Staff must pass a live face scan (with a blink check) to time in and out.<br/><small>Staff without Face ID will be asked to set it up first.</small>', confirmText: 'Require face' },
-                  faceRequired ? 'Manual time in allowed' : 'Face verification required',
-                )
-              }
-            />
-            <i />
-            <span>
-              <b>{faceRequired ? 'Required' : 'Optional'}</b> — {faceRequired ? 'staff must scan their face to time in/out.' : 'staff can use the manual button.'}
-            </span>
-          </label>
+          <div className="dtr-face-rules">
+            {(['in', 'out'] as const).map((k) => {
+              const on = k === 'in' ? faceIn : faceOut;
+              return (
+                <label key={k} className={`dtr-rule-row ${on ? 'on' : ''}`}>
+                  <span className="dtr-rule-ico">{k === 'in' ? <LogIn size={18} /> : <LogOut size={18} />}</span>
+                  <span className="grow">
+                    <b>{k === 'in' ? 'Time in' : 'Time out'}</b>
+                    <span className="muted small">{on ? 'Live face scan required' : 'Manual button allowed'}</span>
+                  </span>
+                  <span className="switch">
+                    <input type="checkbox" checked={on} onChange={() => toggleFace(k)} />
+                    <i />
+                  </span>
+                </label>
+              );
+            })}
+          </div>
           <div className="field" style={{ marginTop: 14 }}>
             <span className="small muted">Match strictness</span>
             <div className="seg seg-3">

@@ -80,7 +80,7 @@ export function errorMessage(err: unknown): string {
   if (/TB_OWNER_KEY_INVALID/.test(msg)) return 'The store owner key is not valid.';
   if (/TB_OTP_REQUIRED/.test(msg)) return 'Enter the 6-digit code from your email first.';
   // time clock — strip our internal error prefix, keep the friendly sentence
-  const tb = msg.match(/TB_(?:FACE_w+|ALREADY_IN|NOT_IN): (.*)$/);
+  const tb = msg.match(/TB_(?:FACE_[A-Z_]+|ALREADY_IN|NOT_IN|OWNER_NO_DTR): (.*)$/);
   if (tb) return tb[1]!;
   if (/Token has expired|otp_expired|invalid.*otp/i.test(msg)) return 'That code is wrong or has expired. Send a new one.';
   return msg;
