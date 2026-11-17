@@ -16,7 +16,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { confirmAction, toast } from '../lib/alerts';
-import { STORE_NAME, initials } from '../lib/format';
+import { BRAND, BRAND_INITIAL, initials } from '../lib/format';
 import NotificationCards from './NotificationCards';
 
 export default function Layout() {
@@ -53,9 +53,12 @@ export default function Layout() {
 
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="brand">
-          <span className="brand-mark">J</span>
+          <span className="brand-mark">{BRAND_INITIAL}</span>
           <div>
-            <div className="brand-name display">{STORE_NAME}</div>
+            <div className="brand-name display">
+              {BRAND.first}
+              <em>{BRAND.second}</em>
+            </div>
             <div className="eyebrow">Point of sale</div>
           </div>
           <button className="icon-btn sidebar-close" onClick={() => setOpen(false)} aria-label="Close menu">

@@ -1,6 +1,6 @@
-# Jen Store — POS & Inventory
+# TapBenta — POS & Inventory
 
-A web-based point of sale and inventory system for Jen Store.
+TapBenta is a web-based point of sale and inventory system.
 
 **Stack:** React 18 + TypeScript (Vite) · Supabase (Postgres, Row Level Security, Realtime, Storage, Auth) · deployed on Vercel.
 
@@ -36,7 +36,7 @@ A web-based point of sale and inventory system for Jen Store.
 - **Add product from a photo.** A reminder card first asks for a photo where the **barcode** is visible, not just the product name. The system reads the barcode from the image and looks it up in the free **Open Food Facts / Open Beauty Facts / Open Products Facts** databases to fill in the name, category and brand/size. Staff then check the details and add price, cost and stock.
 - **Products without a barcode** (home-made, repacked, store-owned): the system **generates** a barcode for them:
   - an **EAN-13 in the `2…` in-store range**, checked against the database so it's unique and never clashes with real retail barcodes, and
-  - a **word code** such as `JEN-BLUEHA-7K2Q`, printed as Code-128 + QR so it can be scanned or typed.
+  - a **word code** such as `TB-BLUEHA-7K2Q`, printed as Code-128 + QR so it can be scanned or typed.
 - Print a **sticker label** (name, price, barcode, word code, QR).
 - Product photos are stored in Supabase Storage and shown in the inventory and at the register.
 - Stock adjustments (restock, corrections) with a reason and note; every movement is logged.
@@ -56,6 +56,8 @@ A web-based point of sale and inventory system for Jen Store.
   - **Items sold:** quantity, revenue, cost and profit per product.
 
 ### Interface
+- **Animated intro** before sign-in (once per browser session): the TapBenta trolley (Lottie) rolls in with glass chips, confetti and the wordmark; click or press any key to skip. Add `?intro` to the URL to replay it.
+- **Sign-in page:** frosted card with Remember me, Forgot password (email reset link) and Google / Apple buttons (enable those providers in Supabase → Authentication → Sign In / Providers).
 - Left sidebar navigation (a slide-out menu on phones), warm minimalist design.
 - A **confirmation card** before important actions and a success/error card afterwards (SweetAlert2).
 
@@ -99,8 +101,8 @@ Copy `.env.example` to `.env.local`:
 |---|---|---|
 | `VITE_SUPABASE_URL` | yes | `https://<project-ref>.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | yes | the **publishable** (`sb_publishable_…`) or legacy anon key |
-| `VITE_STORE_NAME` | no | shown in the app and on receipts (default `Jen Store`) |
-| `VITE_CODE_PREFIX` | no | word-code prefix (default `JEN`) |
+| `VITE_STORE_NAME` | no | shown in the app and on receipts (default `TapBenta`) |
+| `VITE_CODE_PREFIX` | no | word-code prefix (default `TB`) |
 | `VITE_CURRENCY` / `VITE_LOCALE` | no | defaults `PHP` / `en-PH` |
 
 > Never use the **secret / service_role** key in this app. `VITE_` variables are visible in the browser.

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { errorMessage, supabase } from '../lib/supabase';
+import { failure, promptValue, success } from '../lib/alerts';
 import type { Profile } from '../lib/types';
 
 interface SignUpInput {
@@ -25,6 +26,21 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+async function askNewPassword() {
+  const pw = await promptValue({
+    title: 'Set a new password',
+    text: 'Choose a new password for your account.',
+    input: 'password',
+    placeholder: 'At least 8 characters',
+    confirmText: 'Save password',
+    validate: (v) => (v.length < 8 ? 'Use at least 8 characters.' : null),
+  });
+  if (!pw) return;
+  const { error } = await supabase.auth.updateUser({ password: pw });
+  if (error) failure('Could not update password', errorMessage(error));
+  else success('Password updated', 'You are signed in.');
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -42,10 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await loadProfile(data.session?.user.id);
       setLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
       // defer to avoid calling supabase inside the auth callback lock
       setTimeout(() => loadProfile(s?.user.id), 0);
+      // Arrived from a "reset password" email → ask for the new password
+      if (event === 'PASSWORD_RECOVERY') setTimeout(askNewPassword, 300);
     });
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);

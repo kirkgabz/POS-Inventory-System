@@ -1,0 +1,119 @@
+/* =====================================================================
+   Sign-in — warm neutral, frosted glass, single centred column
+   ===================================================================== */
+.signin {
+  --s-ink: #17140f; --s-ink-2: #5a5348; --s-ink-3: #8f877a; --s-line: rgba(23, 20, 15, 0.12);
+  position: relative; min-height: 100%; display: grid; place-items: center; padding: clamp(24px, 5vh, 56px) 16px;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; color: var(--s-ink); isolation: isolate; overflow: hidden;
+}
+.signin.waiting { opacity: 0; }
+.signin-bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; background: linear-gradient(160deg, #faf8ff 0%, #f7f4fb 50%, #f3fbf7 100%); }
+.signin-bg::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(23, 20, 15, 0.09) 1.1px, transparent 1.2px); background-size: 26px 26px; -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000, transparent 75%); mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000, transparent 75%); }
+.signin-glow { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.55; animation: signin-orb 16s ease-in-out infinite alternate; }
+.signin-glow.g1 { width: 50vmax; height: 50vmax; top: -20vmax; left: -14vmax; background: #b7c4ff; }
+.signin-glow.g2 { width: 44vmax; height: 44vmax; top: -10vmax; right: -16vmax; background: #ffc4df; animation-duration: 20s; }
+.signin-glow.g3 { width: 46vmax; height: 46vmax; bottom: -24vmax; left: 20vw; background: #b4f5dc; animation-duration: 18s; animation-direction: alternate-reverse; }
+
+.signin-main { width: min(460px, 100%); display: grid; gap: 22px; justify-items: center; }
+.signin-brand { display: flex; align-items: center; gap: 14px; }
+.signin-mark { position: relative; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--s-ink); color: #e9f19c; font: italic 400 30px 'Fraunces', Georgia, serif; box-shadow: 0 14px 30px -14px rgba(23, 20, 15, 0.6); }
+.signin-mark::after { content: ''; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: #cbc6f8; }
+.signin-name { font: 400 28px/1 'Fraunces', Georgia, serif; letter-spacing: -0.02em; }
+.signin-name em { color: #7a6ff0; font-style: italic; }
+.signin-tag { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--s-ink-3); font-weight: 600; }
+
+.signin-card {
+  width: 100%; display: grid; gap: 16px; padding: 28px; border-radius: 28px;
+  background: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 50px 100px -40px rgba(60, 40, 20, 0.35), 0 18px 40px -24px rgba(60, 40, 20, 0.25);
+}
+.signin-card button, .signin-card input { font-family: inherit; }
+.signin-tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 14px; background: rgba(23, 20, 15, 0.06); isolation: isolate; }
+.signin-tabs button { position: relative; z-index: 1; height: 38px; border: 0; background: none; border-radius: 11px; font-size: 14px; font-weight: 600; color: var(--s-ink-3); transition: color 0.25s; }
+.signin-tabs button.on { color: var(--s-ink); }
+.signin-tabs i { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 11px; background: #fff; box-shadow: 0 4px 12px -4px rgba(23, 20, 15, 0.2); transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.signin-tabs i.right { transform: translateX(100%); }
+
+.signin-head { display: grid; gap: 4px; animation: row-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.signin-head h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; }
+.signin-head p { color: var(--s-ink-2); font-size: 14.5px; }
+
+.signin-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.signin-roles button { display: grid; gap: 2px; justify-items: start; text-align: left; padding: 13px 14px; border-radius: 14px; border: 1.5px solid var(--s-line); background: rgba(255, 255, 255, 0.7); transition: all 0.25s; }
+.signin-roles button svg { color: var(--s-ink-3); margin-bottom: 4px; }
+.signin-roles button strong { font-size: 14px; }
+.signin-roles button span { font-size: 12px; color: var(--s-ink-3); }
+.signin-roles button.on { border-color: var(--s-ink); background: #fff; }
+.signin-roles button.on svg { color: #7a6ff0; }
+
+.sf { display: grid; gap: 7px; }
+.sf > span { font-size: 13px; font-weight: 600; color: var(--s-ink); }
+.sf > small { font-size: 12px; color: var(--s-ink-3); }
+.sf-box { position: relative; display: flex; align-items: center; height: 50px; border-radius: 14px; background: #fff; border: 1.5px solid var(--s-line); transition: border-color 0.2s, box-shadow 0.2s; }
+.sf-box > svg { position: absolute; left: 15px; color: var(--s-ink-3); pointer-events: none; transition: color 0.2s; }
+.sf-box input { flex: 1; height: 100%; min-width: 0; border: 0; outline: none; background: transparent; padding: 0 44px; font-size: 15px; font-weight: 500; color: var(--s-ink); border-radius: 14px; }
+.sf-box input::placeholder { color: #b3ab9e; font-weight: 400; }
+.sf-box:focus-within { border-color: var(--s-ink); box-shadow: 0 0 0 4px rgba(122, 111, 240, 0.16); }
+.sf-box:focus-within > svg { color: var(--s-ink); }
+.sf-box input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text-fill-color: var(--s-ink); }
+.sf-eye { position: absolute; right: 8px; width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: none; border-radius: 10px; color: var(--s-ink-3); }
+.sf-eye:hover { background: rgba(23, 20, 15, 0.06); color: var(--s-ink); }
+
+.signin-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: -2px; }
+.signin-check { position: relative; display: inline-flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 500; color: var(--s-ink-2); cursor: pointer; user-select: none; }
+.signin-check input { position: absolute; opacity: 0; pointer-events: none; }
+.signin-check i { width: 19px; height: 19px; border-radius: 6px; border: 1.5px solid rgba(23, 20, 15, 0.3); background: #fff; display: grid; place-items: center; transition: all 0.2s; }
+.signin-check i::after { content: ''; width: 9px; height: 5px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px) scale(0); transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.signin-check input:checked + i { background: var(--s-ink); border-color: var(--s-ink); }
+.signin-check input:checked + i::after { transform: rotate(-45deg) translate(1px, -1px) scale(1); }
+.signin-check input:focus-visible + i { box-shadow: 0 0 0 4px rgba(122, 111, 240, 0.25); }
+.signin-link { border: 0; background: none; padding: 0; font-size: 13.5px; font-weight: 600; color: #6157d9; }
+.signin-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.signin-cta {
+  position: relative; overflow: hidden; height: 54px; border: 0; border-radius: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--s-ink); color: #fff; font-size: 15.5px; font-weight: 700; letter-spacing: 0.01em;
+  box-shadow: 0 16px 30px -16px rgba(23, 20, 15, 0.8); transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s;
+}
+.signin-cta::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.22) 50%, transparent 70%); transform: translateX(-120%); transition: transform 0.7s; }
+.signin-cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 22px 36px -18px rgba(23, 20, 15, 0.85); }
+.signin-cta:hover:not(:disabled)::before { transform: translateX(120%); }
+.signin-cta:active:not(:disabled) { transform: scale(0.98); }
+.signin-cta:disabled { opacity: 0.6; }
+.signin-cta svg:last-child { transition: transform 0.25s; }
+.signin-cta:hover svg:last-child { transform: translateX(3px); }
+
+.signin-or { display: flex; align-items: center; gap: 12px; color: var(--s-ink-3); font-size: 12.5px; font-weight: 500; }
+.signin-or::before, .signin-or::after { content: ''; flex: 1; height: 1px; background: var(--s-line); }
+.signin-sso { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.signin-sso button { height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border-radius: 14px; border: 1.5px solid var(--s-line); background: #fff; font-size: 14px; font-weight: 600; color: var(--s-ink); transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s; }
+.signin-sso button:hover { transform: translateY(-1px); border-color: rgba(23, 20, 15, 0.3); box-shadow: 0 10px 20px -14px rgba(23, 20, 15, 0.5); }
+
+.signin-foot { display: flex; gap: 18px; align-items: center; font-size: 12.5px; color: var(--s-ink-3); }
+.signin-foot button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--s-ink-2); }
+.signin-foot button:hover { color: var(--s-ink); }
+
+/* entrance once the intro hands over */
+.signin.enter .signin-bg { animation: fade 0.9s ease both; }
+.signin.enter .signin-brand { animation: page-in 0.8s 0.05s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.signin.enter .signin-card { animation: signin-card 0.95s 0.12s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.signin.enter .signin-foot { animation: fade 0.8s 0.5s both; }
+@keyframes signin-card { from { opacity: 0; transform: translateY(30px) scale(0.965); } }
+.signin.enter .signin-card > * { animation: row-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.signin.enter .signin-card > :nth-child(1) { animation-delay: 0.25s; }
+.signin.enter .signin-card > :nth-child(2) { animation-delay: 0.31s; }
+.signin.enter .signin-card > :nth-child(3) { animation-delay: 0.37s; }
+.signin.enter .signin-card > :nth-child(4) { animation-delay: 0.43s; }
+.signin.enter .signin-card > :nth-child(5) { animation-delay: 0.49s; }
+.signin.enter .signin-card > :nth-child(6) { animation-delay: 0.55s; }
+.signin.enter .signin-card > :nth-child(n + 7) { animation-delay: 0.61s; }
+
+@media (max-width: 520px) {
+  .signin { place-items: start center; }
+  .signin-card { padding: 22px 18px; border-radius: 24px; gap: 14px; }
+  .signin-head h1 { font-size: 24px; }
+  .signin-name { font-size: 24px; }
+  .signin-row { flex-wrap: wrap; }
+}
+@keyframes signin-orb { to { transform: translate(3vmax, 2vmax) scale(1.08); } }

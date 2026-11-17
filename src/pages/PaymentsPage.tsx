@@ -226,7 +226,7 @@ function AccountForm({
         </label>
         <label className="field">
           <span>Account name</span>
-          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Jen D." />
+          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Juan D." />
         </label>
         <label className="field">
           <span>Account / mobile number</span>

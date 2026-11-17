@@ -1,4 +1,16 @@
-export const STORE_NAME = (import.meta.env.VITE_STORE_NAME as string) || 'Jen Store';
+export const STORE_NAME = (import.meta.env.VITE_STORE_NAME as string) || 'TapBenta';
+
+/** Two-tone brand display: "TapBenta" → Tap + Benta, "My Shop" → My + Shop. */
+export const BRAND = (() => {
+  const n = STORE_NAME.trim();
+  if (n.includes(' ')) {
+    const [first, ...rest] = n.split(/s+/);
+    return { first: first!, second: rest.join(' ') };
+  }
+  const m = n.match(/^(.+?[a-z])([A-Z].*)$/);
+  return m ? { first: m[1]!, second: m[2]! } : { first: n, second: '' };
+})();
+export const BRAND_INITIAL = STORE_NAME.trim().charAt(0).toUpperCase() || 'T';
 const CURRENCY = (import.meta.env.VITE_CURRENCY as string) || 'PHP';
 const LOCALE = (import.meta.env.VITE_LOCALE as string) || 'en-PH';
 

@@ -4,11 +4,11 @@
  *
  *  - EAN-13 starting with "2": the GS1 range reserved for in-store use, so it
  *    never collides with real retail barcodes and any USB scanner reads it.
- *  - Word code: readable short code like  JEN-MANG-7K2Q  — printed as a
+ *  - Word code: readable short code like  TB-MANG-7K2Q  — printed as a
  *    Code-128 barcode + QR so the camera can scan it too, and staff can type it.
  */
 
-const PREFIX = ((import.meta.env.VITE_CODE_PREFIX as string) || 'JEN').toUpperCase();
+const PREFIX = ((import.meta.env.VITE_CODE_PREFIX as string) || 'TB').toUpperCase();
 // No 0/O/1/I to avoid confusion when typed by hand
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 

@@ -118,3 +118,27 @@ export async function choose(opts: {
   });
   return res.isConfirmed ? 'confirm' : res.isDenied ? 'deny' : 'cancel';
 }
+
+/** Ask for a single value (email, new password…). Resolves null when cancelled. */
+export async function promptValue(opts: {
+  title: string;
+  text?: string;
+  input: 'email' | 'password' | 'text';
+  value?: string;
+  placeholder?: string;
+  confirmText: string;
+  validate?: (v: string) => string | null;
+}): Promise<string | null> {
+  const res = await Base.fire({
+    title: opts.title,
+    text: opts.text,
+    input: opts.input,
+    inputValue: opts.value ?? '',
+    inputPlaceholder: opts.placeholder,
+    showCancelButton: true,
+    confirmButtonText: opts.confirmText,
+    cancelButtonText: 'Cancel',
+    inputValidator: (v: string) => (opts.validate ? opts.validate(v) : !v ? 'Please fill this in.' : null),
+  });
+  return res.isConfirmed ? String(res.value) : null;
+}

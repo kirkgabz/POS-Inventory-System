@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { isSupabaseConfigured } from './lib/supabase';
+import { BRAND_INITIAL } from './lib/format';
 import Layout from './components/Layout';
 import AuthPage from './pages/AuthPage';
 import PendingPage from './pages/PendingPage';
@@ -18,7 +19,7 @@ function Splash() {
   return (
     <div className="center-screen">
       <div className="splash">
-        <span className="brand-mark lg">J</span>
+        <span className="brand-mark lg">{BRAND_INITIAL}</span>
         <div className="splash-bar" />
       </div>
     </div>

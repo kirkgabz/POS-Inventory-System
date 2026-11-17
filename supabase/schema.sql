@@ -1,5 +1,5 @@
 -- =====================================================================
---  Jen Store — POS & Inventory schema
+--  TapBenta — POS & Inventory schema
 --  Run this whole file once in Supabase → SQL Editor (new project).
 --  Safe defaults: Row Level Security on every table.
 -- =====================================================================
@@ -40,7 +40,7 @@ create table if not exists public.products (
   description         text,
   category            text,
   barcode             text unique,          -- manufacturer barcode OR generated EAN-13 (prefix 2 = in-store)
-  word_code           text unique,          -- human-readable code, e.g. JEN-MANG-7K2Q
+  word_code           text unique,          -- human-readable code, e.g. TB-MANG-7K2Q
   is_custom           boolean not null default false,  -- store-owned / no original barcode
   price               numeric(12,2) not null check (price >= 0),
   cost                numeric(12,2) not null default 0 check (cost >= 0),

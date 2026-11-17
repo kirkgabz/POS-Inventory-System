@@ -1,6 +1,6 @@
 {
-  "name": "Jen Store POS",
-  "short_name": "Jen POS",
+  "name": "TapBenta POS",
+  "short_name": "TapBenta",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#eef1e0",
