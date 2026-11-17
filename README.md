@@ -109,6 +109,7 @@ In **SQL Editor**, run these files **in order**:
 6. [`supabase/migrations/006_time_clock.sql`](supabase/migrations/006_time_clock.sql)
 7. [`supabase/migrations/007_receipt_settings.sql`](supabase/migrations/007_receipt_settings.sql)
 8. [`supabase/migrations/008_owner_dtr_monitoring.sql`](supabase/migrations/008_owner_dtr_monitoring.sql)
+9. [`supabase/migrations/009_pack_costing.sql`](supabase/migrations/009_pack_costing.sql) — pack size per product, 4-decimal costs (buying by pack)
 
 Then, under **Authentication**:
 - **Sign In / Providers → Google:** turn on and paste the Google OAuth client ID/secret (Google Cloud Console → Credentials; authorised redirect URI = `https://<project-ref>.supabase.co/auth/v1/callback`).

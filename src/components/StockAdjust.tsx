@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Loader2, Minus, Plus } from 'lucide-react';
+import { Loader2, Minus, Package, Plus } from 'lucide-react';
 import Modal from './Modal';
 import { supabase, errorMessage } from '../lib/supabase';
 import { confirmAction, failure, success } from '../lib/alerts';
+import { fmtMoney } from '../lib/format';
 import type { Product } from '../lib/types';
 
 interface Props {
@@ -17,24 +18,48 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
   const [reason, setReason] = useState<'restock' | 'adjustment'>('restock');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // receive by pack: packs × pieces per pack, optionally with the new pack price
+  const [byPack, setByPack] = useState(false);
+  const [packSize, setPackSize] = useState('12');
+  const [packPrice, setPackPrice] = useState('');
 
   useEffect(() => {
     setDir('in');
     setQty(1);
     setReason('restock');
     setNote('');
+    const size = product?.pack_size ?? null;
+    setByPack(!!size);
+    setPackSize(String(size ?? 12));
+    setPackPrice('');
   }, [product]);
 
   if (!product) return null;
-  const change = dir === 'in' ? qty : -qty;
+  const size = Math.trunc(Number(packSize) || 0);
+  const packing = dir === 'in' && byPack;
+  const pieces = packing ? qty * size : qty;
+  const change = dir === 'in' ? pieces : -pieces;
   const after = product.stock + change;
+  const newPackPrice = Number(packPrice) || 0;
+  const newUnitCost = packing && newPackPrice > 0 && size >= 2 ? Math.round((newPackPrice / size) * 10000) / 10000 : null;
+  const costChanges = newUnitCost !== null && Math.abs(newUnitCost - Number(product.cost)) >= 0.005;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!qty || qty < 1) return;
+    if (packing && size < 2) return failure('Pieces per pack', 'A pack should have 2 or more pieces.');
     const ok = await confirmAction({
       title: 'Update stock?',
-      html: `<b>${product.name}</b><br/>${product.stock} → <b>${after}</b> ${product.unit}`,
+      html:
+        `<b>${esc(product.name)}</b><br/>` +
+        (packing ? `${qty} pack(s) × ${size} = <b>${pieces}</b> ${esc(product.unit)}<br/>` : '') +
+        `${product.stock} → <b>${after}</b> ${esc(product.unit)}` +
+        (costChanges
+          ? `<br/><span class="muted">Cost per ${esc(product.unit)}: ${fmtMoney(product.cost)} → <b>${fmtMoney(newUnitCost!)}</b></span>` +
+            (Number(product.price) < newUnitCost!
+              ? `<br/><b style="color:var(--danger)">The selling price ${fmtMoney(product.price)} is now below cost.</b>`
+              : '')
+          : ''),
       confirmText: 'Update stock',
       danger: dir === 'out',
     });
@@ -44,13 +69,26 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
       p_product_id: product.id,
       p_change: change,
       p_reason: dir === 'out' ? 'adjustment' : reason,
-      p_note: note || null,
+      p_note: (packing ? `${qty} pack(s) × ${size}${newPackPrice ? ` @ ${fmtMoney(newPackPrice)}` : ''}` + (note ? ' · ' : '') : '') + note || null,
     });
+    if (error) {
+      setBusy(false);
+      return failure('Could not update stock', errorMessage(error));
+    }
+
+    // remember the pack size / new cost on the product
+    let costNote = '';
+    if (packing && (costChanges || product.pack_size !== size)) {
+      const patch: Record<string, number> = { pack_size: size };
+      if (costChanges) patch.cost = newUnitCost!;
+      const { error: upErr } = await supabase.from('products').update(patch).eq('id', product.id);
+      if (upErr && costChanges) costNote = ' (cost not updated — ' + errorMessage(upErr) + ')';
+      else if (!upErr && costChanges) costNote = ` · cost ${fmtMoney(newUnitCost!)}`;
+    }
     setBusy(false);
-    if (error) return failure('Could not update stock', errorMessage(error));
     onSaved(product.id, data as number);
     onClose();
-    success('Stock updated', `${product.name}: ${data} ${product.unit}`);
+    success('Stock updated', `${product.name}: ${data} ${product.unit}${costNote}`);
   };
 
   return (
@@ -81,6 +119,19 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
           <i className={`seg-pill ${dir === 'out' ? 'right' : ''}`} />
         </div>
 
+        {dir === 'in' && (
+          <div className="center">
+            <span className="mini-seg" role="group" aria-label="Count by">
+              <button type="button" className={!byPack ? 'on' : ''} onClick={() => setByPack(false)}>
+                By {product.unit}
+              </button>
+              <button type="button" className={byPack ? 'on' : ''} onClick={() => setByPack(true)}>
+                <Package size={12} /> By pack
+              </button>
+            </span>
+          </div>
+        )}
+
         <div className="stock-dial">
           <button type="button" className="icon-btn lg" onClick={() => setQty((q) => Math.max(1, q - 1))}>
             <Minus size={18} />
@@ -91,8 +142,36 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
           </button>
         </div>
         <p className="center muted">
+          {packing && (
+            <>
+              {qty} pack(s) × {size || '?'} = <b>{pieces}</b> {product.unit}
+              <br />
+            </>
+          )}
           {product.stock} → <b className={after < 0 ? 'neg' : ''}>{after}</b> {product.unit}
         </p>
+
+        {packing && (
+          <div className="pack-in reveal">
+            <div className="grid-2">
+              <label className="field">
+                <span>Pieces per pack</span>
+                <input className="input" type="number" min="2" step="1" value={packSize} onChange={(e) => setPackSize(e.target.value)} />
+              </label>
+              <label className="field">
+                <span>
+                  Pack price <small className="muted">— optional</small>
+                </span>
+                <input className="input" type="number" min="0" step="0.01" value={packPrice} onChange={(e) => setPackPrice(e.target.value)} placeholder={product.pack_size ? fmtMoney(Number(product.cost) * product.pack_size) : 'e.g. 250'} />
+              </label>
+            </div>
+            {newUnitCost !== null && (
+              <small className={Number(product.price) < newUnitCost ? 'neg' : 'muted'}>
+                New cost {fmtMoney(newUnitCost)} per {product.unit} · profit {fmtMoney(Number(product.price) - newUnitCost)} each at {fmtMoney(product.price)}
+              </small>
+            )}
+          </div>
+        )}
 
         {dir === 'in' && (
           <label className="field">
@@ -111,3 +190,5 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
     </Modal>
   );
 }
+
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

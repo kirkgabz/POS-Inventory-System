@@ -23,6 +23,8 @@ export interface Product {
   image_url: string | null;
   price: number;
   cost: number;
+  /** pieces in one wholesale pack (null = bought per piece) */
+  pack_size?: number | null;
   stock: number;
   low_stock_threshold: number;
   unit: string;

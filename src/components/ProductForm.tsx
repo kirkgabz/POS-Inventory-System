@@ -6,9 +6,12 @@ import {
   ImagePlus,
   Info,
   Loader2,
+  Package,
   RefreshCw,
   ScanBarcode,
   Sparkles,
+  TrendingDown,
+  TrendingUp,
   Wand2,
   X,
 } from 'lucide-react';
@@ -69,6 +72,10 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
   const [camera, setCamera] = useState(false);
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // "Buying by pack": cost is entered for the whole pack and split per piece
+  const [costMode, setCostMode] = useState<'piece' | 'pack'>('piece');
+  const [pack, setPack] = useState({ price: '', size: '12', count: '1' });
+  const [fillStock, setFillStock] = useState(true);
   const tail = useRef(randomTail());
   const wordTouched = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -83,6 +90,14 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     setPhoto(null);
     tail.current = randomTail();
     wordTouched.current = false;
+    setFillStock(true);
+    if (product?.pack_size && product.pack_size > 1) {
+      setCostMode('pack');
+      setPack({ price: String(round2(Number(product.cost) * product.pack_size)), size: String(product.pack_size), count: '1' });
+    } else {
+      setCostMode('piece');
+      setPack({ price: '', size: '12', count: '1' });
+    }
     if (product) {
       const { id: _i, created_by: _c, updated_by: _u, created_at: _ca, updated_at: _ua, ...rest } = product;
       setForm({ ...rest, description: rest.description ?? '', category: rest.category ?? '', barcode: rest.barcode ?? '', word_code: rest.word_code ?? '' });
@@ -207,10 +222,31 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
 
   /* ---------- save ---------- */
 
-  const margin = useMemo(() => {
+  // pack mode → derive the per-piece cost (and starting stock for new products)
+  const packPrice = Number(pack.price) || 0;
+  const packSize = Math.trunc(Number(pack.size) || 0);
+  const packCount = Math.max(0, Math.trunc(Number(pack.count) || 0));
+  useEffect(() => {
+    if (costMode !== 'pack') return;
+    const unitCost = packPrice > 0 && packSize >= 2 ? round4(packPrice / packSize) : 0;
+    setForm((f) => ({
+      ...f,
+      cost: unitCost,
+      stock: !editing && fillStock && packSize >= 2 ? packCount * packSize : f.stock,
+    }));
+  }, [costMode, packPrice, packSize, packCount, fillStock, editing]);
+
+  const profit = useMemo(() => {
     const p = Number(form.price), c = Number(form.cost);
-    return p > 0 && c > 0 ? Math.round(((p - c) / p) * 100) : null;
+    if (!(p > 0) || !(c > 0)) return null;
+    return { each: p - c, margin: Math.round(((p - c) / p) * 1000) / 10, cost: c };
   }, [form.price, form.cost]);
+
+  const switchToPack = () => {
+    // the number typed as cost was really the price of a whole pack
+    setPack((pk) => ({ ...pk, price: String(Number(form.cost) || pk.price) }));
+    setCostMode('pack');
+  };
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -223,6 +259,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
       word_code: form.word_code ? normaliseCode(form.word_code) : null,
       price: Number(form.price),
       cost: Number(form.cost) || 0,
+      pack_size: costMode === 'pack' ? packSize : null,
       stock: Math.trunc(Number(form.stock) || 0),
       low_stock_threshold: Math.trunc(Number(form.low_stock_threshold) || 0),
     };
@@ -230,15 +267,29 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
       failure('No barcode yet', 'Upload a photo of the barcode, scan it with the camera, or generate one.');
       return;
     }
+    if (costMode === 'pack' && (!(packPrice > 0) || packSize < 2)) {
+      failure('Pack details missing', 'Enter the price of one pack and how many pieces are inside (2 or more).');
+      return;
+    }
 
     const priceChanged = editing && Number(product!.price) !== payload.price;
     const loss = payload.cost > 0 && payload.price < payload.cost;
+    const each = payload.price - payload.cost;
     const ok = await confirmAction({
       title: editing ? 'Save changes?' : 'Add this product?',
       html:
-        `<b>${esc(payload.name)}</b> · ${fmtMoney(payload.price)}<br/><span class="mono small">${esc(payload.barcode)}</span>` +
+        `<b>${esc(payload.name)}</b> · ${fmtMoney(payload.price)} per ${esc(payload.unit)}<br/><span class="mono small">${esc(payload.barcode)}</span>` +
         (priceChanged ? `<br/><span class="muted">Price: ${fmtMoney(product!.price)} → <b>${fmtMoney(payload.price)}</b></span>` : '') +
-        (loss ? `<br/><br/><b style="color:var(--danger)">Heads up: the price is lower than the cost.</b>` : '') +
+        (payload.cost > 0 && !loss
+          ? `<br/><span class="muted">Cost ${fmtMoney(payload.cost)} · profit <b>${fmtMoney(each)}</b> per ${esc(payload.unit)}` +
+            (costMode === 'pack' ? ` · <b>${fmtMoney(each * packSize)}</b> per pack of ${packSize}` : '') +
+            '</span>'
+          : '') +
+        (!editing && costMode === 'pack' && fillStock ? `<br/><span class="muted">Starting stock: ${packCount} pack(s) × ${packSize} = <b>${payload.stock}</b></span>` : '') +
+        (loss
+          ? `<br/><br/><b style="color:var(--danger)">Heads up: you'd lose ${fmtMoney(-each)} on every ${esc(payload.unit)} sold.</b>` +
+            (costMode === 'piece' ? `<br/><small>If ${fmtMoney(payload.cost)} is the price of a whole pack, go back and switch Cost to <b>Per pack</b>.</small>` : '')
+          : '') +
         (!isAdmin ? '<br/><br/><small>The store owner will be notified of this change.</small>' : ''),
       confirmText: editing ? 'Save changes' : 'Add product',
       icon: loss ? 'warning' : 'question',
@@ -258,6 +309,12 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
         if (!error) {
           saved = data as Product;
           break;
+        }
+        // database not yet upgraded with migration 009 → save without the pack size
+        if (/pack_size/.test(error.message) && 'pack_size' in payload) {
+          delete (payload as { pack_size?: number | null }).pack_size;
+          payload.cost = round2(payload.cost);
+          continue;
         }
         // a generated code collided (extremely rare) → regenerate and retry
         if (!editing && /duplicate key/.test(error.message)) {
@@ -462,18 +519,108 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                 </select>
               </label>
               <label className="field">
-                <span>Selling price</span>
+                <span>
+                  Selling price <small className="muted">— per {form.unit}</small>
+                </span>
                 <input className="input" type="number" min="0" step="0.01" required value={form.price} onChange={(e) => set('price', e.target.value as unknown as number)} />
               </label>
-              <label className="field">
-                <span>
-                  Cost {margin !== null && <small className={`muted ${margin < 0 ? 'neg' : ''}`}>· {margin}% margin</small>}
+              <div className="field">
+                <span className="cost-head">
+                  Cost
+                  <span className="mini-seg" role="group" aria-label="How the cost is entered">
+                    <button type="button" className={costMode === 'piece' ? 'on' : ''} onClick={() => setCostMode('piece')}>
+                      Per {form.unit}
+                    </button>
+                    <button type="button" className={costMode === 'pack' ? 'on' : ''} onClick={() => setCostMode('pack')}>
+                      <Package size={12} /> Per pack
+                    </button>
+                  </span>
                 </span>
-                <input className="input" type="number" min="0" step="0.01" value={form.cost} onChange={(e) => set('cost', e.target.value as unknown as number)} />
-              </label>
+                {costMode === 'piece' ? (
+                  <input className="input" type="number" min="0" step="0.01" value={form.cost} onChange={(e) => set('cost', e.target.value as unknown as number)} placeholder="What you paid for one" />
+                ) : (
+                  <input className="input" readOnly tabIndex={-1} value={Number(form.cost) > 0 ? `${fmtMoney(Number(form.cost))} per ${form.unit}` : 'Fill in the pack below'} />
+                )}
+              </div>
+
+              {costMode === 'pack' && (
+                <div className="pack-box reveal">
+                  <div className="pack-row">
+                    <label className="field">
+                      <span>Pack price</span>
+                      <input className="input" type="number" min="0" step="0.01" value={pack.price} onChange={(e) => setPack((p) => ({ ...p, price: e.target.value }))} placeholder="e.g. 250" autoFocus />
+                    </label>
+                    <span className="pack-op" aria-hidden>÷</span>
+                    <label className="field">
+                      <span>Pieces per pack</span>
+                      <input className="input" type="number" min="2" step="1" value={pack.size} onChange={(e) => setPack((p) => ({ ...p, size: e.target.value }))} />
+                    </label>
+                    <span className="pack-op" aria-hidden>=</span>
+                    <div className="pack-result">
+                      <small>Cost per {form.unit}</small>
+                      <b>{packPrice > 0 && packSize >= 2 ? fmtMoney(packPrice / packSize) : '—'}</b>
+                    </div>
+                  </div>
+                  {!editing && (
+                    <div className="pack-stock">
+                      <label className="check">
+                        <input type="checkbox" checked={fillStock} onChange={(e) => setFillStock(e.target.checked)} />
+                        <span>Add to starting stock</span>
+                      </label>
+                      {fillStock && (
+                        <span className="pack-count">
+                          <input className="input" type="number" min="0" step="1" value={pack.count} onChange={(e) => setPack((p) => ({ ...p, count: e.target.value }))} aria-label="Packs bought" />
+                          pack(s) × {packSize || '?'} = <b>{packCount * packSize || 0} {form.unit}</b>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {profit && (
+                <div className={`profit-strip reveal ${profit.each < 0 ? 'loss' : profit.margin < 10 ? 'thin' : 'ok'}`}>
+                  {profit.each < 0 ? <TrendingDown size={16} /> : <TrendingUp size={16} />}
+                  <div>
+                    {profit.each < 0 ? (
+                      <>
+                        <b>Loss of {fmtMoney(-profit.each)} per {form.unit}</b> — the selling price is lower than the cost.
+                        {costMode === 'piece' ? (
+                          <>
+                            {' '}Is {fmtMoney(profit.cost)} the price of a whole pack?{' '}
+                            <button type="button" className="link" onClick={switchToPack}>
+                              Switch to per pack
+                            </button>
+                          </>
+                        ) : (
+                          <> Raise the selling price above {fmtMoney(profit.cost)}.</>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        Profit <b>{fmtMoney(profit.each)}</b> per {form.unit} · <b>{profit.margin}%</b> margin
+                        {costMode === 'pack' && packSize >= 2 && (
+                          <>
+                            {' '}· <b>{fmtMoney(profit.each * packSize)}</b> per pack of {packSize}
+                          </>
+                        )}
+                        {profit.margin < 10 && <span className="muted"> — thin margin</span>}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <label className="field">
                 <span>{editing ? 'Stock (use “Adjust stock”)' : 'Starting stock'}</span>
-                <input className="input" type="number" step="1" disabled={editing} value={form.stock} onChange={(e) => set('stock', e.target.value as unknown as number)} />
+                <input
+                  className="input"
+                  type="number"
+                  step="1"
+                  disabled={editing || (costMode === 'pack' && fillStock)}
+                  value={form.stock}
+                  onChange={(e) => set('stock', e.target.value as unknown as number)}
+                />
               </label>
               <label className="field">
                 <span>Low-stock alert at</span>
@@ -571,5 +718,8 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     </Modal>
   );
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
