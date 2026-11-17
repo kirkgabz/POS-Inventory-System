@@ -239,7 +239,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
         `<b>${esc(payload.name)}</b> · ${fmtMoney(payload.price)}<br/><span class="mono small">${esc(payload.barcode)}</span>` +
         (priceChanged ? `<br/><span class="muted">Price: ${fmtMoney(product!.price)} → <b>${fmtMoney(payload.price)}</b></span>` : '') +
         (loss ? `<br/><br/><b style="color:var(--danger)">Heads up: the price is lower than the cost.</b>` : '') +
-        (!isAdmin ? '<br/><br/><small>The admin will be notified of this change.</small>' : ''),
+        (!isAdmin ? '<br/><br/><small>The store owner will be notified of this change.</small>' : ''),
       confirmText: editing ? 'Save changes' : 'Add product',
       icon: loss ? 'warning' : 'question',
     });

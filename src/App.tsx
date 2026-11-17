@@ -1,8 +1,12 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
-import { isSupabaseConfigured } from './lib/supabase';
-import { BRAND_INITIAL } from './lib/format';
+import { useEffect } from 'react';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { BRAND_INITIAL, STORE_NAME } from './lib/format';
+import { failure } from './lib/alerts';
+import { clearOAuthIntent, getOAuthIntent } from './lib/oauth';
+import OwnerSetupPage from './pages/OwnerSetupPage';
 import Layout from './components/Layout';
 import AuthPage from './pages/AuthPage';
 import PendingPage from './pages/PendingPage';
@@ -45,11 +49,31 @@ function AdminOnly({ children }: { children: ReactNode }) {
   return isAdmin ? <>{children}</> : <Navigate to="/" replace />;
 }
 
+/** Signed in with Google but there is no TapBenta account for that email. */
+function NoGoogleAccount() {
+  const { session, signOut } = useAuth();
+  useEffect(() => {
+    const email = session?.user.email ?? 'this Google account';
+    (async () => {
+      await supabase.rpc('discard_my_account');
+      clearOAuthIntent();
+      await signOut();
+      failure(
+        'No account found',
+        `There is no ${STORE_NAME} account for ${email}. Staff need an invitation link from the store owner to create one.`,
+      );
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return <Splash />;
+}
+
 function Gate() {
   const { session, profile, loading } = useAuth();
   if (!isSupabaseConfigured) return <SetupNotice />;
   if (loading || (session && !profile)) return <Splash />;
   if (!session) return <AuthPage />;
+  if (profile!.setup_pending) return getOAuthIntent() === 'owner' ? <OwnerSetupPage /> : <NoGoogleAccount />;
   if (!profile!.is_active) return <PendingPage />;
 
   return (

@@ -96,7 +96,7 @@ export default function PaymentsPage() {
     <div className="page narrow">
       <header className="page-head">
         <div>
-          <span className="eyebrow">Admin</span>
+          <span className="eyebrow">Store owner</span>
           <h1 className="display">Payment accounts</h1>
         </div>
         <button className="btn btn-primary" onClick={() => setEditing('new')}>

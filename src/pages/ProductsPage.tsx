@@ -83,7 +83,7 @@ export default function ProductsPage() {
           </button>
         ) : (
           <span className="chip">
-            <Lock size={13} /> View only — ask an admin for product access
+            <Lock size={13} /> View only — ask the store owner for product access
           </span>
         )}
       </header>

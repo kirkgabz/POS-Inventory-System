@@ -68,7 +68,7 @@ export default function SalesPage() {
     setExporting(true);
     try {
       const { downloadSalesExcel } = await import('../lib/salesReport');
-      await downloadSalesExcel(sales, period, profile?.full_name ?? 'Admin');
+      await downloadSalesExcel(sales, period, profile?.full_name ?? 'Store owner');
       success('Report downloaded', 'Check your Downloads folder.');
     } catch (e) {
       failure('Could not create the file', errorMessage(e));

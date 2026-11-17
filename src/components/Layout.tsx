@@ -86,7 +86,7 @@ export default function Layout() {
               <strong>{profile?.full_name}</strong>
               <span className="me-role">
                 {isAdmin ? (
-                  'Administrator'
+                  'Store owner'
                 ) : canManageProducts ? (
                   <>
                     <ShieldCheck size={12} /> Authorized staff

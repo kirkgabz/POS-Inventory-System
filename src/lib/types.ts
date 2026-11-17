@@ -7,6 +7,8 @@ export interface Profile {
   role: Role;
   can_manage_products: boolean;
   is_active: boolean;
+  /** brand-new Google user who has not finished sign-up yet */
+  setup_pending?: boolean;
   created_at: string;
 }
 
@@ -111,4 +113,18 @@ export interface PaymentAccount {
   qr_url: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+export interface StaffInvite {
+  id: string;
+  code: string;
+  invited_name: string | null;
+  email: string | null;
+  created_by: string | null;
+  expires_at: string;
+  used_by: string | null;
+  used_at: string | null;
+  revoked: boolean;
+  created_at: string;
+  used_profile?: { full_name: string; email: string | null } | null;
 }

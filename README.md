@@ -9,11 +9,14 @@ TapBenta is a web-based point of sale and inventory system.
 ## Features
 
 ### Accounts & roles
-- **Sign in / sign up** for staff and admins (email + password, Supabase Auth).
-- The **first account ever created becomes the admin** automatically.
-- New **staff accounts wait for admin approval**; admins get a notification and approve them in *Staff & Access*.
-- Additional admins sign up with an **admin invite key** (set by an admin in *Staff & Access*), or an admin promotes an existing staff member.
-- Admins can deactivate accounts. The database always keeps at least one active admin.
+- Two roles: **Store owner** (full control) and **Staff**.
+- The **first account ever created becomes the store owner** automatically.
+- **Staff join by invitation only.** In *Staff & Access* the store owner clicks **Invite staff** (optionally for a specific name/email, valid 1–7 days) and sends the one-time link — copy, share sheet or QR code. The staff member opens the link (or pastes it on the *Create account* page) and creates their account; they're active immediately. Without a valid invitation the database refuses the sign-up.
+- Invitations can be cancelled; the list shows who joined with which link.
+- **Google sign-in:** anyone with an account can use *Continue with Google* on the sign-in page (Supabase links the Google login to the account with the same email). Google accounts with no TapBenta account are turned away and removed.
+- **Store owner sign-up with Google:** *Create account → Store owner → Continue with Google*, then a **6-digit code** emailed to that address confirms it. Staff cannot sign up with Google — they use email + invitation link.
+- A co-owner can sign up as **Store owner** with the *store owner key* (set in *Staff & Access*), or the owner can promote a staff member.
+- The store owner can deactivate accounts; there is always at least one active store owner.
 
 ### Point of Sale (register)
 - The register shows **only the current order**: a numbered list of product, price, quantity and amount.
@@ -57,7 +60,7 @@ TapBenta is a web-based point of sale and inventory system.
 
 ### Interface
 - **Animated intro** before sign-in (once per browser session): the TapBenta trolley (Lottie) rolls in with glass chips, confetti and the wordmark; click or press any key to skip. Add `?intro` to the URL to replay it.
-- **Sign-in page:** frosted card with Remember me, Forgot password (email reset link) and Google / Apple buttons (enable those providers in Supabase → Authentication → Sign In / Providers).
+- **Sign-in page:** frosted card with Remember me, Forgot password (email reset link) and Continue with Google.
 - Left sidebar navigation (a slide-out menu on phones), warm minimalist design.
 - A **confirmation card** before important actions and a success/error card afterwards (SweetAlert2).
 
@@ -89,8 +92,12 @@ In **SQL Editor**, run these files **in order**:
 1. [`supabase/schema.sql`](supabase/schema.sql)
 2. [`supabase/migrations/002_product_photos_and_costs.sql`](supabase/migrations/002_product_photos_and_costs.sql)
 3. [`supabase/migrations/003_payment_accounts.sql`](supabase/migrations/003_payment_accounts.sql)
+4. [`supabase/migrations/004_staff_invitations.sql`](supabase/migrations/004_staff_invitations.sql)
+5. [`supabase/migrations/005_google_owner_signup.sql`](supabase/migrations/005_google_owner_signup.sql)
 
 Then, under **Authentication**:
+- **Sign In / Providers → Google:** turn on and paste the Google OAuth client ID/secret (Google Cloud Console → Credentials; authorised redirect URI = `https://<project-ref>.supabase.co/auth/v1/callback`).
+- **Emails → Magic Link** template: include `{{ .Token }}` so the email contains the **6-digit code** used for Google store-owner sign-up.
 - **URL Configuration:** set *Site URL* to the production URL and add it, plus `http://localhost:5173`, to *Redirect URLs*.
 - **Sign In / Providers → Email:** *Confirm email* can be turned off for local testing. For production, keep it on and set up custom SMTP (the built-in sender has a low hourly limit).
 
@@ -113,7 +120,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm run build      # type-check + production build
 ```
-Sign up: the first account becomes the admin.
+Sign up: the first account becomes the store owner.
 
 ---
 
@@ -146,5 +153,6 @@ Sign up: the first account becomes the admin.
 | `stock_movements` | admin or authorized staff | only through `process_sale()` / `adjust_stock()` |
 | `payment_accounts` | active users | admins |
 | `notifications` | recipient only | created by triggers; recipient can mark read / delete |
-| `app_settings` (admin invite key) | admins | admins |
+| `staff_invites` | store owner (plus a public validity check for the sign-up page) | store owner |
+| `app_settings` (store owner key) | store owner | store owner |
 | storage `product-images` | public URLs | upload/update/delete: admin or authorized staff |

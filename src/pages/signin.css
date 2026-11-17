@@ -117,3 +117,38 @@
   .signin-row { flex-wrap: wrap; }
 }
 @keyframes signin-orb { to { transform: translate(3vmax, 2vmax) scale(1.08); } }
+
+/* invitation field states */
+.sf-box .sf-status { position: absolute; right: 14px; display: grid; place-items: center; color: var(--s-ink-3); }
+.sf-box.ok { border-color: #2f9e6a; box-shadow: 0 0 0 4px rgba(47, 158, 106, 0.12); }
+.sf-box.ok .sf-status { color: #2f9e6a; }
+.sf-box.bad { border-color: #d65a4a; }
+.sf-box.bad .sf-status { color: #d65a4a; }
+.sf > small.sf-good { color: #2f7a55; font-weight: 600; }
+.sf > small.sf-bad { color: #c2473a; font-weight: 500; }
+.sf-box input[readonly] { color: var(--s-ink-2); }
+.signin-cta:disabled { cursor: not-allowed; }
+
+/* Google button (full width) */
+.signin-google {
+  position: relative; height: 50px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  border-radius: 14px; border: 1.5px solid var(--s-line); background: #fff; font-family: inherit; font-size: 14.5px; font-weight: 600; color: var(--s-ink);
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.signin-google:hover { transform: translateY(-1px); border-color: rgba(23, 20, 15, 0.3); box-shadow: 0 10px 20px -14px rgba(23, 20, 15, 0.5); }
+.signin-google small { font-size: 11.5px; font-weight: 600; color: #6157d9; background: rgba(122, 111, 240, 0.1); padding: 3px 8px; border-radius: 999px; }
+
+/* 6-digit code */
+.otp-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 6px; background: rgba(122, 111, 240, 0.12); color: #6157d9; }
+.otp { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+.otp input {
+  width: 100%; aspect-ratio: 0.86; min-height: 54px; border-radius: 14px; border: 1.5px solid var(--s-line); background: #fff;
+  text-align: center; font-family: inherit; font-size: 24px; font-weight: 700; color: var(--s-ink); outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.otp input:focus { border-color: var(--s-ink); box-shadow: 0 0 0 4px rgba(122, 111, 240, 0.16); }
+.otp input.filled { border-color: rgba(23, 20, 15, 0.45); animation: otp-pop 0.18s ease; }
+@keyframes otp-pop { 50% { transform: scale(1.06); } }
+.otp-resend { justify-self: center; display: inline-flex; align-items: center; gap: 6px; }
+.otp-resend:disabled { color: var(--s-ink-3); cursor: default; text-decoration: none; }
+@media (max-width: 400px) { .otp { gap: 6px; } .otp input { font-size: 20px; min-height: 46px; } }

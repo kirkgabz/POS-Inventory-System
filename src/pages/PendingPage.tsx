@@ -12,7 +12,7 @@ export default function PendingPage() {
         </div>
         <h1 className="display">Almost there, {profile?.full_name?.split(' ')[0] || 'friend'}.</h1>
         <p className="muted">
-          Your staff account is waiting for an admin to approve it. This page updates by itself once you're in.
+          Your account isn't active right now. Ask the store owner to reactivate it — this page updates by itself once they do.
         </p>
         <div className="row gap center">
           <button

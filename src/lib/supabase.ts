@@ -73,6 +73,12 @@ export function errorMessage(err: unknown): string {
       : (err as { message?: string }).message ?? 'Something went wrong.';
   if (/duplicate key.*barcode/i.test(msg)) return 'That barcode is already used by another product.';
   if (/duplicate key.*word_code/i.test(msg)) return 'That word code is already used by another product.';
-  if (/row-level security/i.test(msg)) return 'You are not authorized to do that. Ask an admin for access.';
+  if (/row-level security/i.test(msg)) return 'You are not authorized to do that. Ask the store owner for access.';
+  if (/TB_INVITE_EMAIL/.test(msg)) return 'This invitation was made for a different email address.';
+  if (/TB_INVITE_INVALID|Database error saving new user/i.test(msg))
+    return 'Your invitation is not valid (it may be used, expired or cancelled). Ask the store owner for a new link.';
+  if (/TB_OWNER_KEY_INVALID/.test(msg)) return 'The store owner key is not valid.';
+  if (/TB_OTP_REQUIRED/.test(msg)) return 'Enter the 6-digit code from your email first.';
+  if (/Token has expired|otp_expired|invalid.*otp/i.test(msg)) return 'That code is wrong or has expired. Send a new one.';
   return msg;
 }

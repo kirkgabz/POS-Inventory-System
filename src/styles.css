@@ -733,3 +733,21 @@ body::before { opacity: 0.18; }
 .auth-art .display em, .auth-art h1 em { color: var(--lime); }
 .btn-primary { color: #fff; }
 .nav-link.active svg { color: var(--ink); }
+
+/* ---------- staff invitations ---------- */
+.invites { display: grid; }
+.invite { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+.invite:last-child { border-bottom: 0; }
+.invite .grow { min-width: 180px; }
+.invite-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ink-3); flex-shrink: 0; }
+.invite.st-open .invite-dot { background: var(--accent); box-shadow: 0 0 0 0 rgba(122, 111, 240, 0.5); animation: pulse 2s infinite; }
+.invite.st-used .invite-dot { background: var(--sage); }
+.invite.st-revoked, .invite.st-expired { opacity: 0.55; }
+.invite-tag.t-open { background: var(--accent-soft); color: #4d43c9; }
+.invite-tag.t-used { background: var(--sage-soft); color: #2f6f22; }
+.invite-tag.t-revoked, .invite-tag.t-expired { background: var(--paper-2); color: var(--ink-3); }
+.invite-empty { padding: 6px 0; }
+.share-invite { display: grid; gap: 14px; justify-items: center; }
+.share-qr { width: min(220px, 60vw); height: auto; border-radius: 18px; border: 1px solid var(--line-soft); box-shadow: var(--shadow); animation: pop 0.45s var(--ease) both; }
+.share-link { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 14px; background: var(--paper); border: 1px dashed var(--line); }
+.share-link .mono { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

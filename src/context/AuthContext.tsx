@@ -10,6 +10,7 @@ interface SignUpInput {
   password: string;
   role: 'staff' | 'admin';
   adminCode?: string;
+  inviteCode?: string;
 }
 
 interface AuthState {
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
 
-  // Live-update my own profile (e.g. admin authorizes me or approves my account)
+  // Live-update my own profile (e.g. the store owner grants access or deactivates me)
   const uid = session?.user.id;
   useEffect(() => {
     if (!uid) return;
@@ -97,13 +98,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       },
-      async signUp({ fullName, email, password, role, adminCode }) {
+      async signUp({ fullName, email, password, role, adminCode, inviteCode }) {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: window.location.origin,
-            data: { full_name: fullName, requested_role: role, admin_code: role === 'admin' ? adminCode : undefined },
+            data: {
+              full_name: fullName,
+              requested_role: role,
+              admin_code: role === 'admin' ? adminCode : undefined,
+              invite_code: role === 'staff' ? inviteCode : undefined,
+            },
           },
         });
         if (error) throw error;
