@@ -1,177 +1,118 @@
 # TapBenta — POS & Inventory
 
-TapBenta is a web-based point of sale and inventory system.
+**TapBenta** is a point-of-sale and inventory system for small stores, such as sari-sari stores, boutiques and mini-marts. It runs in a web browser on a laptop, desktop, tablet or phone, so there's nothing to install.
 
-**Stack:** React 18 + TypeScript (Vite) · Supabase (Postgres, Row Level Security, Realtime, Storage, Auth) · deployed on Vercel.
+It handles everyday store work in one place: selling at the counter, keeping track of stock, recording staff hours and reporting sales and profit.
 
 ---
 
-## Features
+## What the system does
 
-### Accounts & roles
-- Two roles: **Store owner** (full control) and **Staff**.
-- The **first account ever created becomes the store owner** automatically.
-- **Staff join by invitation only.** In *Staff & Access* the store owner clicks **Invite staff** (optionally for a specific name/email, valid 1–7 days) and sends the one-time link — copy, share sheet or QR code. The staff member opens the link (or pastes it on the *Create account* page) and creates their account; they're active immediately. Without a valid invitation the database refuses the sign-up.
-- Invitations can be cancelled; the list shows who joined with which link.
-- **Google sign-in:** anyone with an account can use *Continue with Google* on the sign-in page (Supabase links the Google login to the account with the same email). Google accounts with no TapBenta account are turned away and removed.
-- **Store owner sign-up with Google:** *Create account → Store owner → Continue with Google*, then a **6-digit code** emailed to that address confirms it. Staff cannot sign up with Google — they use email + invitation link.
-- A co-owner can sign up as **Store owner** with the *store owner key* (set in *Staff & Access*), or the owner can promote a staff member.
-- The store owner can deactivate accounts; there is always at least one active store owner.
-
-### Point of Sale (register)
-- The register shows **only the current order**: a numbered list of product, price, quantity and amount.
-- Add items by:
-  - **USB barcode scanner** (it types the code and presses Enter),
-  - **camera scanning** on phone or laptop (EAN-13/8, UPC-A/E, Code-128, Code-39, ITF, QR), or
-  - **typing a word code or name**: after **2 or more characters**, matching products appear in a dropdown (pick with the mouse, or ↑/↓ and Enter).
-- A **quantity picker** next to the search adds several of the same item at once. Each order line has −/+ and an editable quantity. Quantities can never exceed stock.
-- Discount, **Cash / E-wallet / Bank & Card** payment, quick-cash buttons, change calculation, printable 58 mm receipt.
-- Scanning an unknown code offers to add it as a new product (for authorized users).
-- Checkout runs as **one database transaction** (`process_sale`). Prices and costs are read from the database, not the browser, and stock can't go below zero.
-
-### Receipt & invoice (store owner)
-- A **Receipt & invoice** page with a live, print-accurate preview: logo, business name, tagline, address, contact number, email, **TIN**, business permit, header note, footer message.
-- **VAT-registered** option (rate configurable, 12% default) prints VATable sales, VAT, VAT-exempt and zero-rated lines.
-- Paper size **58 mm / 80 mm thermal or A4**, optional cashier name, receipt-number barcode and a "This is not an official receipt" notice (on by default — only BIR-accredited systems may issue official receipts).
-- The same receipt prints from the register and can be **reprinted** (marked REPRINT) from the Sales page; *Test print* checks the printer.
-
-### Payment accounts (admin)
-- Admins add **e-wallet** (GCash, Maya, …) and **bank / card** accounts with a provider name, account name, account number and an optional **QR code image**.
-- At the register, each account has a **Show** button that opens a card with the amount, the QR code, the account name and the number.
-- If no account of a type exists, that payment option shows as **Unavailable**.
-- The account used and the customer's **reference number** are saved with the sale.
+### Selling (Point of Sale)
+- Add items to an order by **scanning the barcode** with a USB scanner or the device camera, or by **typing the product's word code or name**. Suggestions appear after 2 letters.
+- Choose a quantity, apply a discount, and take payment by **cash, e-wallet (GCash, Maya…) or bank / card**.
+- For e-wallet and bank payments, the cashier can show the customer the store's **QR code and account details**.
+- The system computes the change, records the sale and prints a **receipt**.
 
 ### Products & inventory
-- **Add product from a photo.** A reminder card first asks for a photo where the **barcode** is visible, not just the product name. The system reads the barcode from the image and looks it up in the free **Open Food Facts / Open Beauty Facts / Open Products Facts** databases to fill in the name, category and brand/size. Staff then check the details and add price, cost and stock.
-- **Products without a barcode** (home-made, repacked, store-owned): the system **generates** a barcode for them:
-  - an **EAN-13 in the `2…` in-store range**, checked against the database so it's unique and never clashes with real retail barcodes, and
-  - a **word code** such as `TB-BLUEHA-7K2Q`, printed as Code-128 + QR so it can be scanned or typed.
-- Print a **sticker label** (name, price, barcode, word code, QR).
-- Product photos are stored in Supabase Storage and shown in the inventory and at the register.
-- Stock adjustments (restock, corrections) with a reason and note; every movement is logged.
-- Filters for low stock, out of stock, own products and hidden products.
+- **Add branded products from a photo or camera scan of the barcode.** The system reads the barcode and, when it can, fills in the product name automatically.
+- **Products without a barcode** (home-made, repacked, store-owned) get a **unique barcode and word code** from the system, ready to print as a sticker label.
+- **Buying by pack:** enter the wholesale pack price and the number of pieces inside. The system works out the cost per piece, the profit per piece and per pack, and the margin. It warns you if you'd be selling at a loss.
+- **Restock by piece or by pack**, record damaged or lost items, and get **low-stock and out-of-stock** alerts.
 
-### Staff authorization & admin notifications
-- An admin turns on **"Product & price access"** per staff member, allowing them to add products, change prices and adjust stock.
-- Every add, price change, edit or stock adjustment made by staff creates a **notification for all admins**. This is done by a database trigger, so it can't be skipped from the app.
-- Admins see a live **pop-up card** with the details (e.g. ₱45 → ₱50) and a full *Notifications* page.
+### Sales reports
+- View sales by **day, week, month or year**, with a chart and the full list of transactions.
+- Download an **Excel report** with totals, profit, best-selling items, and breakdowns by payment method and by cashier.
+
+### Staff & access
+- **Two roles:** the **Store owner**, who controls everything, and **Staff**.
+- **Staff can only join with an invitation link** from the store owner.
+- The store owner chooses which staff may **add products and change prices**. Every change staff make shows up for the owner as a **pop-up notification**.
 
 ### Time clock (DTR)
-- **Staff** get a **Time clock** page: live clock, big **Time in / Time out** button, hours worked this week and recent records. **Store owners don't clock in** — they get a monitoring view instead.
-- Times are stamped by the **server**, not the device, so changing the phone/PC clock does nothing.
-- **Face ID (optional or required):** a live face scan with a **blink check** (a printed photo won't pass). Each person enrols once; only the store owner can reset it. The match is decided in the database — the browser only sends a 128-number face descriptor and no photos are stored.
-- The **store owner** sets face verification separately for **time in** and **time out** (required or optional) plus the match strictness, sees who is **on the clock now**, browses the time log by day/week/month, corrects records (e.g. forgot to time out) and downloads a **DTR Excel** (summary + full log).
+- Staff **time in and time out**. The time comes from the system, not the device, so it can't be faked by changing the phone's clock.
+- **Optional face check:** a quick live face scan with a blink test. The owner decides whether it's required for time in, for time out, or both.
+- The store owner sees **who's on duty right now**, reviews and corrects records, and downloads the **DTR in Excel**. The owner doesn't clock in.
 
-### Sales & reports
-- Sales page with **Day / Week / Month / Year** periods, previous/next navigation, a revenue chart and an expandable transaction list. Staff see only their own sales; admins see everything.
-- **Download Excel** (admin) creates a workbook with four sheets:
-  - **Summary:** revenue, transactions, items, average sale, discounts, cost of goods, gross profit and margin, plus totals by payment method and by cashier.
-  - **Breakdown:** by hour, by day or by month, depending on the period.
-  - **Transactions:** every sale, with payment account and reference.
-  - **Items sold:** quantity, revenue, cost and profit per product.
+### Receipts
+- The store owner sets up the receipt: logo, business name, address, contact details, TIN, VAT, footer message and paper size (58 mm, 80 mm or A4).
+- A live preview shows exactly how the receipt will print. Past receipts can be **reprinted**.
 
-### Interface
-- **Animated intro** before sign-in (once per browser session): the TapBenta trolley (Lottie) rolls in with glass chips, confetti and the wordmark; click or press any key to skip. Add `?intro` to the URL to replay it.
-- **Sign-in page:** frosted card with Remember me, Forgot password (email reset link) and Continue with Google.
-- Left sidebar navigation (a slide-out menu on phones), warm minimalist design.
-- A **confirmation card** before important actions and a success/error card afterwards (SweetAlert2).
+### Safety & ease of use
+- Every important action asks for **confirmation first**, then shows a clear **success or error message**.
+- Sign in with **email and password** or **Google**, with **Remember me** and **Forgot password**.
+- Clean, simple design with a left-side menu (a slide-out menu on phones).
 
 ---
 
-## Project structure
+## How to run it
 
-```
-src/
-  pages/        Auth, Pending, Dashboard, Pos, Products, Sales, Staff, Payments, Notifications
-  components/   Layout (sidebar), ProductForm, StockAdjust, CameraScanner, CodeLabel,
-                PaymentAccountCard, NotificationCards, Modal
-  context/      AuthContext, NotificationContext (realtime)
-  hooks/        useProducts, usePaymentAccounts (realtime)
-  lib/          supabase client, alerts, barcode/word-code generation, photo barcode reading,
-                product lookup, storage uploads, sales periods & Excel report, formatting
-supabase/
-  schema.sql                                  base schema, RLS, triggers, RPCs
-  migrations/002_product_photos_and_costs.sql product photos, cost per sale, storage bucket
-  migrations/003_payment_accounts.sql         payment accounts, payment reference on sales
-```
+### Using the live system
+Open the store's TapBenta web address in any modern browser (Chrome, Edge, Safari or Firefox). On a phone you can choose **"Add to Home screen"** for quick access.
 
----
+> **TapBenta needs an internet connection.** The camera (for scanning and the face check) works on the secure (https) web address.
 
-## Setup
+### Running it on your own computer (for developers)
+1. Install **Node.js** (version 18 or newer).
+2. Get the project files and open a terminal in the project folder.
+3. Create a file named `.env.local` with the store's connection details (copy `.env.example` and fill it in).
+4. Run:
+   ```bash
+   npm install
+   npm run dev
+   ```
+5. Open **http://localhost:5173** in your browser.
 
-### 1. Supabase
-In **SQL Editor**, run these files **in order**:
-1. [`supabase/schema.sql`](supabase/schema.sql)
-2. [`supabase/migrations/002_product_photos_and_costs.sql`](supabase/migrations/002_product_photos_and_costs.sql)
-3. [`supabase/migrations/003_payment_accounts.sql`](supabase/migrations/003_payment_accounts.sql)
-4. [`supabase/migrations/004_staff_invitations.sql`](supabase/migrations/004_staff_invitations.sql)
-5. [`supabase/migrations/005_google_owner_signup.sql`](supabase/migrations/005_google_owner_signup.sql)
-6. [`supabase/migrations/006_time_clock.sql`](supabase/migrations/006_time_clock.sql)
-7. [`supabase/migrations/007_receipt_settings.sql`](supabase/migrations/007_receipt_settings.sql)
-8. [`supabase/migrations/008_owner_dtr_monitoring.sql`](supabase/migrations/008_owner_dtr_monitoring.sql)
-9. [`supabase/migrations/009_pack_costing.sql`](supabase/migrations/009_pack_costing.sql) — pack size per product, 4-decimal costs (buying by pack)
-
-Then, under **Authentication**:
-- **Sign In / Providers → Google:** turn on and paste the Google OAuth client ID/secret (Google Cloud Console → Credentials; authorised redirect URI = `https://<project-ref>.supabase.co/auth/v1/callback`).
-- **Emails → Magic Link** template: include `{{ .Token }}` so the email contains the **6-digit code** used for Google store-owner sign-up.
-- **URL Configuration:** set *Site URL* to the production URL and add it, plus `http://localhost:5173`, to *Redirect URLs*.
-- **Sign In / Providers → Email:** *Confirm email* can be turned off for local testing. For production, keep it on and set up custom SMTP (the built-in sender has a low hourly limit).
-
-### 2. Environment variables
-Copy `.env.example` to `.env.local`:
-
-| Variable | Required | Description |
-|---|---|---|
-| `VITE_SUPABASE_URL` | yes | `https://<project-ref>.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | yes | the **publishable** (`sb_publishable_…`) or legacy anon key |
-| `VITE_STORE_NAME` | no | shown in the app and on receipts (default `TapBenta`) |
-| `VITE_CODE_PREFIX` | no | word-code prefix (default `TB`) |
-| `VITE_CURRENCY` / `VITE_LOCALE` | no | defaults `PHP` / `en-PH` |
-
-> Never use the **secret / service_role** key in this app. `VITE_` variables are visible in the browser.
-
-### 3. Run locally
-```bash
-npm install
-npm run dev        # http://localhost:5173
-npm run build      # type-check + production build
-```
-Sign up: the first account becomes the store owner.
+Changes pushed to the main branch on GitHub are published to the live site automatically.
 
 ---
 
-## Deploying to Vercel
+## How to use it
 
-1. Import the GitHub repo. Framework preset: **Vite** (build `npm run build`, output `dist`).
-2. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` under **Settings → Environment Variables** (Production, and Preview if you use preview links). After changing them, redeploy, because they're baked in at build time.
-3. Every push to `main` deploys to production. `vercel.json` rewrites routes to `index.html` so page refreshes work.
-4. Add the production URL to Supabase **Authentication → URL Configuration**.
+### 1. Getting started (store owner)
+1. Open TapBenta and choose **Create account → Store owner**. Sign up with email, or with **Google** and a 6-digit code sent to your email.
+2. Go to **Receipt & invoice** and enter your store's details.
+3. Go to **Payment accounts** and add your GCash, Maya or bank details with their QR codes. Payment types you don't add show as "Unavailable" at the register.
+4. Go to **Inventory** and add your products (see step 3).
+
+### 2. Adding staff
+1. Go to **Staff & Access → Invite staff** and send the invitation link by copying it, sharing it, or showing the QR code.
+2. The staff member opens the link, enters their name, email and password, and can start right away.
+3. Turn on **Product & price access** for staff you trust to add products and change prices.
+
+### 3. Adding products
+1. In **Inventory**, click **Add product**.
+2. Pick one of these:
+   - **Upload product photo:** take a clear photo of the **barcode**, and the name is filled in when the product is found;
+   - **Scan with the camera:** point it at the barcode;
+   - **No barcode · own product:** the system creates a barcode and word code for you.
+3. Enter the **selling price**, the **cost** (switch to **Per pack** if you bought a wholesale pack) and the **stock**.
+4. Click **Add product**. For generated codes, use **Print label** and stick it on the item.
+
+### 4. Selling
+1. Open **Point of Sale**.
+2. Scan items or type their word code or name. Use the quantity picker or the − / + buttons for more than one.
+3. Click **Charge** and choose **Cash, E-wallet or Bank / Card**:
+   - **Cash:** enter the amount received and the change is shown;
+   - **E-wallet / Bank:** tap **Show** to display your QR code, then enter the customer's reference number.
+4. Confirm, and print the receipt.
+
+### 5. Restocking
+In **Inventory**, click a product's **Adjust stock**. Add stock **by piece or by pack**, and enter a new pack price if the supplier's price changed. Use **Remove** for damaged, expired or lost items.
+
+### 6. Time in / time out (staff)
+Open **Time clock** and tap **Time in** when your shift starts and **Time out** when it ends. If the face check is on, look at the camera and blink when asked. The first time, you'll register your face once.
+
+### 7. Checking sales and staff hours (store owner)
+- **Sales:** pick day, week, month or year to see totals and transactions, then **Download Excel** for the full report.
+- **Time clock:** see who's on duty, review time records, fix forgotten time-outs, and download the DTR.
+- **Notifications:** review every product or price change made by staff.
 
 ---
 
 ## Good to know
+- **Camera scanning** works best in good light, with the barcode flat and filling most of the frame.
+- **Not every product is found automatically.** Many local or small-brand items aren't listed online. In that case, just type the name once; next time the item scans instantly from your own inventory.
+- **Receipts** print with a "This is not an official receipt" notice by default. Only BIR-accredited systems may issue official receipts.
 
-- **The camera needs HTTPS** (or `localhost`). It works on the Vercel URL, but not when the dev server is opened over your local network (`http://192.168…`).
-- **The product name lookup** only sends the barcode number to Open Food/Beauty/Products Facts. It works well for branded goods. Many small or local products aren't listed; the barcode is still filled in and staff type the name.
-- **Reading barcodes from photos** works best when the barcode fills much of the picture, is in focus and isn't glossy or tilted.
-- **Word codes are scanned through their printed Code-128/QR**, not by reading the letters (no OCR).
-- **PWA / offline:** only a web manifest is included. The app is online-only. Installing it as an app needs a service worker (e.g. `vite-plugin-pwa`) and PNG icons.
-
----
-
-## Security model (Row Level Security)
-
-| Table / bucket | Read | Write |
-|---|---|---|
-| `profiles` | own profile; active users | self (name only) · admins (role, access, approval), enforced by trigger |
-| `products` | active users | insert/update: admin or authorized staff · delete: admin |
-| `sales`, `sale_items` | admins: all · staff: their own | only through `process_sale()` |
-| `stock_movements` | admin or authorized staff | only through `process_sale()` / `adjust_stock()` |
-| `payment_accounts` | active users | admins |
-| `notifications` | recipient only | created by triggers; recipient can mark read / delete |
-| `staff_invites` | store owner (plus a public validity check for the sign-up page) | store owner |
-| `attendance` | own records · store owner: all | only through `clock_in()` / `clock_out()` · store owner can correct |
-| `face_profiles` | nobody (no read policy) | only through `enroll_face()` / `reset_face()` |
-| `receipt_settings` | active users | store owner |
-| `app_settings` (store owner key, DTR settings) | store owner | store owner |
-| storage `product-images` | public URLs | upload/update/delete: admin or authorized staff |
+© 2026 TapBenta
