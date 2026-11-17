@@ -29,6 +29,12 @@ TapBenta is a web-based point of sale and inventory system.
 - Scanning an unknown code offers to add it as a new product (for authorized users).
 - Checkout runs as **one database transaction** (`process_sale`). Prices and costs are read from the database, not the browser, and stock can't go below zero.
 
+### Receipt & invoice (store owner)
+- A **Receipt & invoice** page with a live, print-accurate preview: logo, business name, tagline, address, contact number, email, **TIN**, business permit, header note, footer message.
+- **VAT-registered** option (rate configurable, 12% default) prints VATable sales, VAT, VAT-exempt and zero-rated lines.
+- Paper size **58 mm / 80 mm thermal or A4**, optional cashier name, receipt-number barcode and a "This is not an official receipt" notice (on by default — only BIR-accredited systems may issue official receipts).
+- The same receipt prints from the register and can be **reprinted** (marked REPRINT) from the Sales page; *Test print* checks the printer.
+
 ### Payment accounts (admin)
 - Admins add **e-wallet** (GCash, Maya, …) and **bank / card** accounts with a provider name, account name, account number and an optional **QR code image**.
 - At the register, each account has a **Show** button that opens a card with the amount, the QR code, the account name and the number.
@@ -101,6 +107,7 @@ In **SQL Editor**, run these files **in order**:
 4. [`supabase/migrations/004_staff_invitations.sql`](supabase/migrations/004_staff_invitations.sql)
 5. [`supabase/migrations/005_google_owner_signup.sql`](supabase/migrations/005_google_owner_signup.sql)
 6. [`supabase/migrations/006_time_clock.sql`](supabase/migrations/006_time_clock.sql)
+7. [`supabase/migrations/007_receipt_settings.sql`](supabase/migrations/007_receipt_settings.sql)
 
 Then, under **Authentication**:
 - **Sign In / Providers → Google:** turn on and paste the Google OAuth client ID/secret (Google Cloud Console → Credentials; authorised redirect URI = `https://<project-ref>.supabase.co/auth/v1/callback`).
@@ -163,5 +170,6 @@ Sign up: the first account becomes the store owner.
 | `staff_invites` | store owner (plus a public validity check for the sign-up page) | store owner |
 | `attendance` | own records · store owner: all | only through `clock_in()` / `clock_out()` · store owner can correct |
 | `face_profiles` | nobody (no read policy) | only through `enroll_face()` / `reset_face()` |
+| `receipt_settings` | active users | store owner |
 | `app_settings` (store owner key, DTR settings) | store owner | store owner |
 | storage `product-images` | public URLs | upload/update/delete: admin or authorized staff |

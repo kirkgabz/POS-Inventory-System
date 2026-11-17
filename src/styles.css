@@ -830,3 +830,36 @@ body::before { opacity: 0.18; }
 @media (max-width: 980px) {
   .dtr-hero, .dtr-owner-grid { grid-template-columns: 1fr; }
 }
+
+/* =====================================================================
+   Receipt & invoice settings
+   ===================================================================== */
+.rcpt { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+.rcpt-form { display: grid; gap: 14px; }
+.rcpt-sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.rcpt-sec-head h3 { font-size: 20px; }
+.rcpt-sec-icon { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--accent-soft); color: #4d43c9; flex-shrink: 0; }
+.rcpt-logo { display: flex; align-items: center; gap: 16px; }
+.rcpt-logo-box { width: 92px; height: 92px; border-radius: 18px; border: 1px dashed var(--line); background: #fff; display: grid; place-items: center; color: var(--ink-3); overflow: hidden; flex-shrink: 0; }
+.rcpt-logo-box img { max-width: 86%; max-height: 86%; object-fit: contain; }
+.rcpt-switch { align-items: flex-start; gap: 12px; }
+.rcpt-switch span { font-size: 13.5px; color: var(--ink-2); }
+.rcpt-toggles { display: grid; gap: 10px; }
+.rcpt-preview { position: sticky; top: 24px; display: grid; gap: 10px; }
+.rcpt-preview-head { display: flex; align-items: center; justify-content: space-between; }
+.rcpt-paper {
+  margin: 0 auto; background: #fff; border-radius: 6px; padding: 10px 4px 18px;
+  box-shadow: 0 30px 60px -30px rgba(20, 20, 20, 0.45), 0 2px 6px rgba(20, 20, 20, 0.08);
+  -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 100%, transparent 5px, #000 5.5px) bottom / 12px 10px repeat-x;
+  mask: linear-gradient(#000 0 0) top / 100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 100%, transparent 5px, #000 5.5px) bottom / 12px 10px repeat-x;
+  transition: width 0.4s var(--ease);
+}
+.rcpt-paper iframe { display: block; width: 100%; height: 640px; border: 0; }
+.rcpt-paper.p-58mm { width: 250px; }
+.rcpt-paper.p-80mm { width: 330px; }
+.rcpt-paper.p-a4 { width: 100%; }
+.receipt-actions { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px dashed var(--line); margin-top: 4px; }
+@media (max-width: 1100px) {
+  .rcpt { grid-template-columns: 1fr; }
+  .rcpt-preview { position: static; }
+}

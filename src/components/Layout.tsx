@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   Package,
+  Printer,
   ReceiptText,
   ScanLine,
   ShieldCheck,
@@ -36,6 +37,7 @@ export default function Layout() {
     { to: '/dtr', label: 'Time clock', icon: Clock3, show: true },
     { to: '/staff', label: 'Staff & Access', icon: Users, show: isAdmin },
     { to: '/payments', label: 'Payment accounts', icon: Wallet, show: isAdmin },
+    { to: '/receipt', label: 'Receipt & invoice', icon: Printer, show: isAdmin },
     { to: '/notifications', label: 'Notifications', icon: Bell, show: isAdmin, badge: unread },
   ];
 

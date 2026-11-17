@@ -24,7 +24,8 @@ import Modal from '../components/Modal';
 import { supabase, errorMessage } from '../lib/supabase';
 import { confirmAction, failure, toast } from '../lib/alerts';
 import { normaliseCode } from '../lib/codes';
-import { STORE_NAME, fmtDate, fmtMoney, methodLabel } from '../lib/format';
+import { fmtMoney, methodLabel } from '../lib/format';
+import { printReceipt } from '../lib/receipt';
 import type { CartLine, PaymentAccount, Product, SaleResult } from '../lib/types';
 
 const CART_KEY = 'jen-pos-cart';
@@ -576,7 +577,7 @@ export default function PosPage() {
         subtitle={receipt?.receipt_no}
         footer={
           <>
-            <button className="btn btn-ghost" onClick={() => receipt && printReceipt(receipt, profile?.full_name ?? '')}>
+            <button className="btn btn-ghost" onClick={() => receipt && printPosReceipt(receipt, profile?.full_name ?? '')}>
               <Printer size={15} /> Print receipt
             </button>
             <button
@@ -654,28 +655,19 @@ function Mark({ text, q }: { text: string; q: string }) {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-function printReceipt(r: Receipt, cashier: string) {
-  const w = window.open('', '_blank', 'width=380,height=640');
-  if (!w) return;
-  w.document.write(`<!doctype html><html><head><title>${r.receipt_no}</title><style>
-    @page { size: 58mm auto; margin: 2mm; }
-    body { font: 10pt 'DM Mono', ui-monospace, monospace; width: 54mm; margin: 0 auto; color: #000; }
-    h1 { font: 600 13pt Georgia, serif; text-align: center; margin: 2mm 0 0; }
-    .c { text-align: center; } .r { display: flex; justify-content: space-between; gap: 2mm; }
-    hr { border: 0; border-top: 1px dashed #000; margin: 2mm 0; } .b { font-weight: 700; font-size: 11pt; }
-  </style></head><body>
-    <h1>${esc(STORE_NAME)}</h1>
-    <div class="c">${esc(fmtDate(r.at))}<br/>${esc(r.receipt_no)} · ${esc(cashier)}</div><hr/>
-    ${r.lines.map((l) => `<div>${esc(l.product.name)}</div><div class="r"><span>${l.quantity} × ${esc(fmtMoney(l.product.price))}</span><span>${esc(fmtMoney(l.quantity * l.product.price))}</span></div>`).join('')}
-    <hr/><div class="r"><span>Subtotal</span><span>${esc(fmtMoney(r.subtotal))}</span></div>
-    ${r.discount > 0 ? `<div class="r"><span>Discount</span><span>-${esc(fmtMoney(r.discount))}</span></div>` : ''}
-    <div class="r b"><span>TOTAL</span><span>${esc(fmtMoney(r.total))}</span></div>
-    <div class="r"><span>${esc(methodLabel(r.method).toUpperCase())}</span><span>${esc(fmtMoney(r.amount_paid))}</span></div>
-    ${r.method === 'cash' ? `<div class="r"><span>Change</span><span>${esc(fmtMoney(r.change))}</span></div>` : ''}
-    ${r.account ? `<div>${esc(r.account)}</div>` : ''}
-    ${r.ref ? `<div>Ref: ${esc(r.ref)}</div>` : ''}
-    <hr/><div class="c">Thank you, come again!</div>
-    <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),300)}<\/script>
-  </body></html>`);
-  w.document.close();
+function printPosReceipt(r: Receipt, cashier: string) {
+  printReceipt({
+    receipt_no: r.receipt_no,
+    at: r.at,
+    cashier,
+    lines: r.lines.map((l) => ({ name: l.product.name, quantity: l.quantity, unit_price: l.product.price })),
+    subtotal: r.subtotal,
+    discount: r.discount,
+    total: r.total,
+    method: r.method,
+    amount_paid: r.amount_paid,
+    change: r.change,
+    account: r.account,
+    ref: r.ref,
+  });
 }

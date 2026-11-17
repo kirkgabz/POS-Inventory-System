@@ -36,3 +36,12 @@ export async function uploadPaymentQr(file: File): Promise<string> {
   if (error) throw error;
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
+
+/** Upload the store logo for receipts (PNG keeps transparency). */
+export async function uploadReceiptLogo(file: File): Promise<string> {
+  const blob = await compressImage(file, 600, 'image/png');
+  const path = `receipt/logo-${crypto.randomUUID()}.png`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/png', upsert: false });
+  if (error) throw error;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}

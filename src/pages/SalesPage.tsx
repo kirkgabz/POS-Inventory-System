@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, ReceiptText } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Printer, ReceiptText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, errorMessage } from '../lib/supabase';
 import { confirmAction, failure, success } from '../lib/alerts';
 import { fmtDate, fmtMoney, methodLabel } from '../lib/format';
 import { getPeriod, type PeriodType } from '../lib/period';
 import { summarise } from '../lib/salesReport';
+import { printReceipt } from '../lib/receipt';
 import type { Sale } from '../lib/types';
 
 const PAGE = 1000;
@@ -56,6 +57,31 @@ export default function SalesPage() {
 
   const s = useMemo(() => summarise(sales, period), [sales, period]);
   const maxBar = Math.max(1, ...s.breakdown.map((b) => b.revenue));
+
+  const reprint = async (sale: Sale) => {
+    const ok = await confirmAction({
+      title: 'Reprint this receipt?',
+      html: `<span class="mono">${sale.receipt_no}</span> · ${fmtMoney(sale.total)}<br/><small>It will be marked as a REPRINT.</small>`,
+      confirmText: 'Print',
+    });
+    if (!ok) return;
+    const opened = await printReceipt({
+      receipt_no: sale.receipt_no,
+      at: sale.created_at,
+      cashier: sale.cashier?.full_name,
+      lines: (sale.sale_items ?? []).map((i) => ({ name: i.name, quantity: i.quantity, unit_price: Number(i.unit_price) })),
+      subtotal: Number(sale.subtotal),
+      discount: Number(sale.discount),
+      total: Number(sale.total),
+      method: sale.payment_method,
+      amount_paid: Number(sale.amount_paid),
+      change: Number(sale.change_due),
+      account: sale.payment_account,
+      ref: sale.payment_ref,
+      reprint: true,
+    });
+    if (!opened) failure('Pop-up blocked', 'Allow pop-ups for this site to print receipts.');
+  };
 
   const exportExcel = async () => {
     const ok = await confirmAction({
@@ -229,6 +255,11 @@ export default function SalesPage() {
                             <span>
                               {fmtMoney(sale.amount_paid)} / {fmtMoney(sale.change_due)}
                             </span>
+                          </div>
+                          <div className="receipt-actions">
+                            <button className="btn btn-ghost btn-xs" onClick={() => reprint(sale)}>
+                              <Printer size={13} /> Reprint receipt
+                            </button>
                           </div>
                         </div>
                       </td>
