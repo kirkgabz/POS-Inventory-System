@@ -53,7 +53,10 @@ export interface Sale {
   payment_account: string | null;
   payment_ref: string | null;
   created_at: string;
-  cashier?: { full_name: string } | null;
+  /** name/role of whoever took the order, saved on the sale */
+  cashier_name?: string | null;
+  cashier_role?: string | null;
+  cashier?: { full_name: string; role?: string } | null;
   sale_items?: SaleItem[];
 }
 
@@ -156,4 +159,20 @@ export interface DtrStatus {
   enrolled: boolean;
   server_now: string;
   open: Attendance | null;
+}
+
+export type ActivityAction = 'added' | 'price' | 'edited' | 'restock' | 'stock_in' | 'stock_out' | 'deleted';
+
+export interface ProductActivity {
+  id: string;
+  product_id: string | null;
+  product_name: string;
+  actor_id: string | null;
+  actor_name: string;
+  actor_role: string | null;
+  action: ActivityAction;
+  stock_change: number | null;
+  changes: Record<string, unknown>;
+  note: string | null;
+  created_at: string;
 }

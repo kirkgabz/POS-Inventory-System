@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Printer, ReceiptText } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Printer, ReceiptText, UserRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, errorMessage } from '../lib/supabase';
 import { confirmAction, failure, success } from '../lib/alerts';
-import { fmtDate, fmtMoney, methodLabel } from '../lib/format';
+import { fmtDate, fmtMoney, methodLabel, roleName, takenBy } from '../lib/format';
 import { getPeriod, type PeriodType } from '../lib/period';
 import { summarise } from '../lib/salesReport';
 import { printReceipt } from '../lib/receipt';
@@ -16,7 +16,7 @@ async function fetchSales(start: Date, end: Date): Promise<Sale[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('sales')
-      .select('*, cashier:profiles(full_name), sale_items(*)')
+      .select('*, cashier:profiles(full_name, role), sale_items(*)')
       .gte('created_at', start.toISOString())
       .lt('created_at', end.toISOString())
       .order('created_at', { ascending: false })
@@ -32,7 +32,8 @@ export default function SalesPage() {
   const { isAdmin, profile } = useAuth();
   const [type, setType] = useState<PeriodType>('day');
   const [offset, setOffset] = useState(0);
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [allSales, setSales] = useState<Sale[]>([]);
+  const [who, setWho] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
@@ -55,6 +56,23 @@ export default function SalesPage() {
     };
   }, [period]);
 
+  // everyone who took an order in this period (owner filter)
+  const takers = useMemo(() => {
+    const m = new Map<string, { key: string; name: string; role: string | null | undefined; count: number }>();
+    allSales.forEach((x) => {
+      const key = x.cashier_id ?? `name:${takenBy(x)}`;
+      const g = m.get(key) ?? { key, name: takenBy(x), role: x.cashier_role ?? x.cashier?.role, count: 0 };
+      g.count++;
+      m.set(key, g);
+    });
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [allSales]);
+  const sales = useMemo(
+    () => (who === 'all' ? allSales : allSales.filter((x) => (x.cashier_id ?? `name:${takenBy(x)}`) === who)),
+    [allSales, who],
+  );
+  const whoLabel = who === 'all' ? '' : takers.find((t) => t.key === who)?.name ?? '';
+
   const s = useMemo(() => summarise(sales, period), [sales, period]);
   const maxBar = Math.max(1, ...s.breakdown.map((b) => b.revenue));
 
@@ -68,7 +86,7 @@ export default function SalesPage() {
     const opened = await printReceipt({
       receipt_no: sale.receipt_no,
       at: sale.created_at,
-      cashier: sale.cashier?.full_name,
+      cashier: takenBy(sale),
       lines: (sale.sale_items ?? []).map((i) => ({ name: i.name, quantity: i.quantity, unit_price: Number(i.unit_price) })),
       subtotal: Number(sale.subtotal),
       discount: Number(sale.discount),
@@ -86,7 +104,7 @@ export default function SalesPage() {
   const exportExcel = async () => {
     const ok = await confirmAction({
       title: 'Download Excel report?',
-      html: `<b>${period.label}</b><br/>${s.transactions} transaction(s) · ${fmtMoney(s.revenue)}<br/><small class="muted">Includes summary, ${type === 'day' ? 'hourly' : type === 'year' ? 'monthly' : 'daily'} breakdown, every transaction and items sold.</small>`,
+      html: `<b>${period.label}</b>${whoLabel ? ` · ${whoLabel}` : ''}<br/>${s.transactions} transaction(s) · ${fmtMoney(s.revenue)}<br/><small class="muted">Includes summary, ${type === 'day' ? 'hourly' : type === 'year' ? 'monthly' : 'daily'} breakdown, every transaction and items sold.</small>`,
       confirmText: 'Download',
       icon: 'question',
     });
@@ -94,7 +112,7 @@ export default function SalesPage() {
     setExporting(true);
     try {
       const { downloadSalesExcel } = await import('../lib/salesReport');
-      await downloadSalesExcel(sales, period, profile?.full_name ?? 'Store owner');
+      await downloadSalesExcel(sales, whoLabel ? { ...period, label: `${period.label} · ${whoLabel}` } : period, profile?.full_name ?? 'Store owner');
       success('Report downloaded', 'Check your Downloads folder.');
     } catch (e) {
       failure('Could not create the file', errorMessage(e));
@@ -149,6 +167,20 @@ export default function SalesPage() {
             </button>
           )}
         </div>
+        {isAdmin && takers.length > 0 && (
+          <label className="who-filter">
+            <UserRound size={15} />
+            <select className="input" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Taken by">
+              <option value="all">Everyone ({allSales.length})</option>
+              {takers.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.name}
+                  {roleName(t.role) ? ` · ${roleName(t.role)}` : ''} ({t.count})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className={`stats ${isAdmin ? '' : 'three'}`}>
@@ -209,7 +241,7 @@ export default function SalesPage() {
               <tr>
                 <th>Receipt</th>
                 <th>When</th>
-                {isAdmin && <th>Cashier</th>}
+                <th>Taken by</th>
                 <th>Payment</th>
                 <th className="num">Total</th>
                 <th />
@@ -221,7 +253,12 @@ export default function SalesPage() {
                   <tr className="clickable" onClick={() => setOpen(open === sale.id ? null : sale.id)}>
                     <td className="mono small">{sale.receipt_no}</td>
                     <td className="small">{fmtDate(sale.created_at)}</td>
-                    {isAdmin && <td>{sale.cashier?.full_name ?? '—'}</td>}
+                    <td>
+                      <span className="taker">
+                        {takenBy(sale)}
+                        {(sale.cashier_role ?? sale.cashier?.role) === 'admin' && <span className="tag tag-owner">Store owner</span>}
+                      </span>
+                    </td>
                     <td>
                       <span className="tag">{methodLabel(sale.payment_method)}</span>
                     </td>
@@ -234,7 +271,7 @@ export default function SalesPage() {
                   </tr>
                   {open === sale.id && (
                     <tr className="detail-row">
-                      <td colSpan={isAdmin ? 6 : 5}>
+                      <td colSpan={6}>
                         <div className="receipt-lines reveal">
                           {sale.sale_items?.map((i) => (
                             <div key={i.id}>
@@ -254,6 +291,13 @@ export default function SalesPage() {
                             <span>{sale.payment_account ? `${sale.payment_account}${sale.payment_ref ? ` · Ref ${sale.payment_ref}` : ''}` : 'Paid / change'}</span>
                             <span>
                               {fmtMoney(sale.amount_paid)} / {fmtMoney(sale.change_due)}
+                            </span>
+                          </div>
+                          <div className="muted">
+                            <span>Taken by</span>
+                            <span>
+                              {takenBy(sale)}
+                              {roleName(sale.cashier_role ?? sale.cashier?.role) ? ` · ${roleName(sale.cashier_role ?? sale.cashier?.role)}` : ''}
                             </span>
                           </div>
                           <div className="receipt-actions">

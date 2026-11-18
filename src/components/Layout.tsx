@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Bell,
   Clock3,
+  History,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -36,6 +37,7 @@ export default function Layout() {
     { to: '/products', label: 'Inventory', icon: Package, show: true },
     { to: '/sales', label: 'Sales', icon: ReceiptText, show: true },
     { to: '/dtr', label: 'Time clock', icon: Clock3, show: true },
+    { to: '/activity', label: 'Inventory log', icon: History, show: isAdmin },
     { to: '/staff', label: 'Staff & Access', icon: Users, show: isAdmin },
     { to: '/payments', label: 'Payment accounts', icon: Wallet, show: isAdmin },
     { to: '/receipt', label: 'Receipt & invoice', icon: Printer, show: isAdmin },

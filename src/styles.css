@@ -931,3 +931,37 @@ body::before { opacity: 0.18; }
   .pack-op { display: none; }
   .pack-result { grid-column: 1 / -1; }
 }
+
+/* ---------- inventory log & taken-by ---------- */
+.who-filter { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-3); }
+.who-filter .input { height: 38px; min-width: 200px; padding-right: 30px; }
+.taker { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+.tag-owner { background: var(--lime); color: var(--ink); }
+.log-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.date-range { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-3); }
+.date-range .input { height: 38px; width: 150px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.log { display: grid; gap: 22px; }
+.log-day h3 { margin-bottom: 8px; }
+.log-day ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.log-row { --tone: var(--ink-3); --tone-soft: var(--paper-2); display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); animation: reveal 0.35s var(--ease) both; }
+.log-row.tone-sage { --tone: var(--sage); --tone-soft: var(--sage-soft); }
+.log-row.tone-danger { --tone: var(--danger); --tone-soft: var(--danger-soft); }
+.log-row.tone-ochre { --tone: #b07a12; --tone-soft: var(--ochre-soft); }
+.log-row.tone-accent { --tone: var(--accent); --tone-soft: var(--accent-soft); }
+.log-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--tone-soft); color: var(--tone); }
+.log-body { min-width: 0; }
+.log-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.log-tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 999px; background: var(--tone-soft); color: var(--tone); }
+.log-detail { font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.log-who { display: flex; align-items: center; gap: 10px; text-align: left; min-width: 170px; }
+.log-who div { display: grid; line-height: 1.25; }
+.log-who b { font-size: 13.5px; }
+.log-who small { font-size: 12px; }
+.avatar.sm { width: 30px; height: 30px; font-size: 11px; }
+.avatar.admin { background: var(--ink); color: var(--lime); }
+@media (max-width: 640px) {
+  .log-row { grid-template-columns: auto 1fr; }
+  .log-who { grid-column: 2; min-width: 0; }
+  .who-filter, .who-filter .input { width: 100%; }
+}

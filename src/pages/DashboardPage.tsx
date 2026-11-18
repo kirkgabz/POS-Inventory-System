@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowUpRight, Package, Receipt, ScanLine, TrendingUp } f
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../hooks/useProducts';
 import { supabase } from '../lib/supabase';
-import { fmtMoney, timeAgo } from '../lib/format';
+import { fmtMoney, takenBy, timeAgo } from '../lib/format';
 import type { Sale } from '../lib/types';
 
 export default function DashboardPage() {
@@ -19,7 +19,7 @@ export default function DashboardPage() {
     since.setHours(0, 0, 0, 0);
     supabase
       .from('sales')
-      .select('*, cashier:profiles(full_name), sale_items(quantity)')
+      .select('*, cashier:profiles(full_name, role), sale_items(quantity)')
       .gte('created_at', since.toISOString())
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -140,7 +140,7 @@ export default function DashboardPage() {
                 <li key={s.id}>
                   <span>
                     <span className="mono small">{s.receipt_no}</span>
-                    <span className="muted small"> · {s.cashier?.full_name ?? '—'} · {timeAgo(s.created_at)}</span>
+                    <span className="muted small"> · {takenBy(s)} · {timeAgo(s.created_at)}</span>
                   </span>
                   <b>{fmtMoney(s.total)}</b>
                 </li>

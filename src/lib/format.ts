@@ -49,3 +49,9 @@ export const initials = (name: string) =>
 /** Human label for a stored payment method (older sales used 'gcash' / 'card'). */
 export const methodLabel = (m: string) =>
   ({ cash: 'Cash', ewallet: 'E-wallet', gcash: 'E-wallet', bank: 'Bank / Card', card: 'Bank / Card' } as Record<string, string>)[m] ?? m;
+
+/** Who took an order: the saved name first, then the linked account. */
+export const takenBy = (s: { cashier_name?: string | null; cashier?: { full_name: string } | null }) =>
+  s.cashier_name || s.cashier?.full_name || 'Unknown';
+
+export const roleName = (role?: string | null) => (role === 'admin' ? 'Store owner' : role === 'staff' ? 'Staff' : '');

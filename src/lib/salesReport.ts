@@ -1,6 +1,6 @@
 import type { Sale } from './types';
 import { buckets, type Period } from './period';
-import { STORE_NAME, methodLabel } from './format';
+import { STORE_NAME, methodLabel, takenBy } from './format';
 
 export interface SalesSummary {
   revenue: number;
@@ -72,7 +72,7 @@ export function summarise(sales: Sale[], period: Period): SalesSummary {
     cost,
     profit: revenue - cost,
     byMethod: group((s) => s.payment_method).map(([method, g]) => ({ method, ...g })),
-    byCashier: group((s) => s.cashier?.full_name ?? 'Unknown').map(([name, g]) => ({ name, ...g })),
+    byCashier: group((s) => takenBy(s)).map(([name, g]) => ({ name, ...g })),
     byProduct: [...prod.entries()]
       .map(([name, g]) => ({ name, ...g, profit: g.revenue - g.cost }))
       .sort((a, b) => b.revenue - a.revenue),
@@ -224,7 +224,7 @@ export async function downloadSalesExcel(sales: Sale[], period: Period, generate
         sale.receipt_no,
         d.toLocaleDateString(),
         d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
-        sale.cashier?.full_name ?? '—',
+        takenBy(sale),
         methodLabel(sale.payment_method),
         (sale.sale_items ?? []).reduce((a, it) => a + it.quantity, 0),
         Number(sale.subtotal),
