@@ -23,6 +23,8 @@ export interface Product {
   image_url: string | null;
   price: number;
   cost: number;
+  /** item = sold with own stock · menu = made from a recipe · ingredient = used in recipes */
+  kind?: ProductKind;
   /** pieces in one wholesale pack (null = bought per piece) */
   pack_size?: number | null;
   stock: number;
@@ -105,6 +107,8 @@ export interface SaleResult {
   total: number;
   amount_paid: number;
   change: number;
+  /** ingredients that ran short (sale still went through) */
+  short?: { menu: string; ingredient: string; unit: string; need: number; had: number }[];
 }
 
 export type PaymentKind = 'ewallet' | 'bank';
@@ -200,4 +204,12 @@ export interface MessageRecipient {
   created_at: string;
   recipient?: { full_name: string } | null;
   message?: Message | null;
+}
+
+export type ProductKind = 'item' | 'menu' | 'ingredient';
+
+export interface RecipeLine {
+  menu_id: string;
+  ingredient_id: string;
+  qty: number;
 }

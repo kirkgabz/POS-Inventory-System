@@ -20,6 +20,16 @@ It handles everyday store work in one place: selling at the counter, keeping tra
 - **Buying by pack:** enter the wholesale pack price and the number of pieces inside. The system works out the cost per piece, the profit per piece and per pack, and the margin. It warns you if you'd be selling at a loss.
 - **Restock by piece or by pack**, record damaged or lost items, and get **low-stock and out-of-stock** alerts.
 
+### Food menu & recipes
+- Products come in three kinds:
+  - **Items**, sold as they are;
+  - **Menu items** you make, like a burger;
+  - **Ingredients**, like bun, patty, lettuce and mayo (in pc, g, ml, slice…).
+- Each menu item has a **recipe**, for example 1 bun, 1 patty, 15 g lettuce and 15 ml mayo. **Selling a burger automatically deducts its ingredients.**
+- The register shows **how many can still be made** from the ingredients in stock. The recipe's **cost and profit** are worked out from the ingredient prices.
+- **Busy hours never stop a sale:** if an ingredient is short, the sale still goes through with a warning, and the store owner is notified to count and restock.
+- Ingredients don't appear at the register. Restock them like any product, including **by pack** (e.g. 1 bottle = 1,000 ml).
+
 ### Sales reports
 - View sales by **day, week, month or year**, with a chart and the full list of transactions.
 - Download an **Excel report** with totals, profit, best-selling items, and breakdowns by payment method and by cashier.
@@ -95,6 +105,11 @@ Changes pushed to the main branch on GitHub are published to the live site autom
    - **No barcode · own product:** the system creates a barcode and word code for you.
 3. Enter the **selling price**, the **cost** (switch to **Per pack** if you bought a wholesale pack) and the **stock**.
 4. Click **Add product**. For generated codes, use **Print label** and stick it on the item.
+
+### 3b. Setting up a food menu
+1. Add each **ingredient**: **Add product → Ingredient**. Choose a small unit (pc, g, ml, slice), then enter the cost and stock. Buying in bottles or packs? Use **Per pack**, e.g. 1 bottle ₱180 = 1000 ml.
+2. Add the **menu item**: **Add product → Menu item with a recipe**. Set the selling price, then **+ Add ingredient** for each one with the amount one serving uses.
+3. The form shows the cost per serving, the profit, and how many you can make right now.
 
 ### 4. Selling
 1. Open **Point of Sale**.

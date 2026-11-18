@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../hooks/useProducts';
+import { useRecipes } from '../hooks/useRecipes';
+import { canMake, isIngredient, isMenu, shortfalls } from '../lib/recipes';
 import { usePaymentAccounts } from '../hooks/usePaymentAccounts';
 import CameraScanner, { beep } from '../components/CameraScanner';
 import ProductForm from '../components/ProductForm';
@@ -34,7 +36,37 @@ type Receipt = SaleResult & { lines: CartLine[]; at: string; method: Method; acc
 
 export default function PosPage() {
   const { profile, canManageProducts } = useAuth();
-  const { products, categories, findByCode, upsertLocal } = useProducts();
+  const { products: catalogue, categories, findByCode: findAny, upsertLocal } = useProducts();
+  const { byMenu } = useRecipes();
+  // ingredients are never sold at the register
+  const products = useMemo(() => catalogue.filter((p) => !isIngredient(p)), [catalogue]);
+  const byId = useMemo(() => new Map(catalogue.map((p) => [p.id, p])), [catalogue]);
+  const findByCode = (code: string) => {
+    const p = findAny(code);
+    if (p && isIngredient(p)) {
+      toast(`${p.name} is an ingredient — it isn't sold at the register`, 'info');
+      return null;
+    }
+    return p;
+  };
+  /** what a line can still go up to: items = stock, menu items = no hard limit */
+  const makeable = (p: Product) => (isMenu(p) ? canMake(byMenu.get(p.id), byId) : p.stock);
+  /** ingredients already needed by the menu items in the order (optionally skipping one line) */
+  const reservedBy = (lines: CartLine[], skip?: string) => {
+    const m = new Map<string, number>();
+    lines.forEach((l) => {
+      if (l.product.id === skip || !isMenu(l.product)) return;
+      byMenu.get(l.product.id)?.forEach((r) => m.set(r.ingredient_id, (m.get(r.ingredient_id) ?? 0) + r.qty * l.quantity));
+    });
+    return m;
+  };
+  /** warn-but-allow: which ingredients would run short for this many servings */
+  const shortText = (p: Product, servings: number, lines: CartLine[]) => {
+    const recipe = byMenu.get(p.id);
+    if (!recipe?.length) return `${p.name} has no recipe yet — no ingredients will be deducted`;
+    const short = shortfalls(recipe, byId, servings, reservedBy(lines, p.id));
+    return short.length ? `Low on ${short.map((x) => x.ingredient.name).join(', ')} — added anyway, the owner will be told` : null;
+  };
   const { accounts } = usePaymentAccounts();
 
   const [cart, setCart] = useState<CartLine[]>(() => {
@@ -105,8 +137,22 @@ export default function PosPage() {
   const itemCount = cart.reduce((s, l) => s + l.quantity, 0);
 
   /* ---------- cart ops ---------- */
-  const add = (p: Product, qty = 1) => {
+  /** returns false (not added), true (added) or a warning string (added, but ingredients are short) */
+  const add = (p: Product, qty = 1): boolean | string => {
     const inCart = cart.find((l) => l.product.id === p.id)?.quantity ?? 0;
+    if (isMenu(p)) {
+      const warn = shortText(p, inCart + qty, cart);
+      setCart((c) => {
+        const i = c.findIndex((l) => l.product.id === p.id);
+        if (i === -1) return [...c, { product: p, quantity: qty }];
+        const next = c.slice();
+        next[i] = { ...next[i]!, quantity: next[i]!.quantity + qty };
+        return next;
+      });
+      setFlash(p.id);
+      setTimeout(() => setFlash(null), 600);
+      return warn ?? true;
+    }
     const room = p.stock - inCart;
     if (room <= 0) {
       beep(false);
@@ -132,6 +178,13 @@ export default function PosPage() {
       c.map((l) => {
         if (l.product.id !== id) return l;
         const q = Math.max(1, Math.trunc(qty) || 1);
+        if (isMenu(l.product)) {
+          if (q > l.quantity) {
+            const warn = shortText(l.product, q, c);
+            if (warn) toast(warn, 'warning');
+          }
+          return { ...l, quantity: q };
+        }
         if (q > l.product.stock) {
           toast(`Only ${l.product.stock} ${l.product.unit} in stock`, 'warning');
           return { ...l, quantity: l.product.stock };
@@ -148,10 +201,12 @@ export default function PosPage() {
   };
 
   const pick = (p: Product) => {
-    if (p.stock <= 0) return toast(`${p.name} is out of stock`, 'warning');
-    if (add(p, addQty)) {
+    if (!isMenu(p) && p.stock <= 0) return toast(`${p.name} is out of stock`, 'warning');
+    const res = add(p, addQty);
+    if (res) {
       beep();
-      toast(`Added ${addQty > 1 ? `${addQty} × ` : ''}${p.name}`);
+      if (typeof res === 'string') toast(`Added ${addQty > 1 ? `${addQty} × ` : ''}${p.name}. ${res}`, 'warning');
+      else toast(`Added ${addQty > 1 ? `${addQty} × ` : ''}${p.name}`);
     }
     setQuery('');
     setAddQty(1);
@@ -277,9 +332,13 @@ export default function PosPage() {
 
     const res = data as SaleResult;
     setReceipt({ ...res, lines: cart, at: new Date().toISOString(), method, account: acctLabel || undefined, ref: ref.trim() || undefined });
-    cart.forEach((l) => upsertLocal({ ...l.product, stock: l.product.stock - l.quantity }));
+    cart.forEach((l) => !isMenu(l.product) && upsertLocal({ ...l.product, stock: l.product.stock - l.quantity }));
     resetOrder();
     beep();
+    if (res.short?.length) {
+      const names = [...new Set(res.short.map((x) => x.ingredient))].join(', ');
+      setTimeout(() => toast(`Sale saved. Short on ${names} — please count and restock.`, 'warning'), 400);
+    }
   };
 
   const quickCash = useMemo(() => {
@@ -352,7 +411,7 @@ export default function PosPage() {
                       type="button"
                       role="option"
                       aria-selected={i === hi}
-                      className={`suggest-item ${i === hi ? 'hi' : ''} ${p.stock <= 0 ? 'out' : ''}`}
+                      className={`suggest-item ${i === hi ? 'hi' : ''} ${!isMenu(p) && p.stock <= 0 ? 'out' : ''}`}
                       onMouseEnter={() => setHi(i)}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -372,9 +431,20 @@ export default function PosPage() {
                       </span>
                       <span className="suggest-right">
                         <b>{fmtMoney(p.price)}</b>
-                        <small className={p.stock <= p.low_stock_threshold ? 'warn' : 'muted'}>
-                          {p.stock <= 0 ? 'sold out' : `${p.stock} left`}
-                        </small>
+                        {isMenu(p) ? (
+                          (() => {
+                            const n = makeable(p);
+                            return (
+                              <small className={n !== null && n <= p.low_stock_threshold ? 'warn' : 'muted'}>
+                                {n === null ? 'made to order' : n <= 0 ? 'ingredients low' : `can make ${n}`}
+                              </small>
+                            );
+                          })()
+                        ) : (
+                          <small className={p.stock <= p.low_stock_threshold ? 'warn' : 'muted'}>
+                            {p.stock <= 0 ? 'sold out' : `${p.stock} left`}
+                          </small>
+                        )}
                       </span>
                     </button>
                   ))
@@ -430,7 +500,13 @@ export default function PosPage() {
                   <span className="ol-name">
                     <strong>{l.product.name}</strong>
                     <span className="mono small muted">
-                      {l.product.word_code ?? l.product.barcode} · {l.product.stock} in stock
+                      {l.product.word_code ?? l.product.barcode} ·{' '}
+                      {isMenu(l.product)
+                        ? (() => {
+                            const n = makeable(l.product);
+                            return n === null ? 'made to order' : `can make ${n}`;
+                          })()
+                        : `${l.product.stock} in stock`}
                     </span>
                   </span>
                   <span className="num">{fmtMoney(l.product.price)}</span>
@@ -440,7 +516,7 @@ export default function PosPage() {
                         <Minus size={13} />
                       </button>
                       <input value={l.quantity} inputMode="numeric" onChange={(e) => setQty(l.product.id, Number(e.target.value))} />
-                      <button onClick={() => setQty(l.product.id, l.quantity + 1)} disabled={l.quantity >= l.product.stock} aria-label="More">
+                      <button onClick={() => setQty(l.product.id, l.quantity + 1)} disabled={!isMenu(l.product) && l.quantity >= l.product.stock} aria-label="More">
                         <Plus size={13} />
                       </button>
                     </span>
@@ -563,7 +639,7 @@ export default function PosPage() {
         categories={categories}
         onSaved={(p) => {
           upsertLocal(p);
-          if (p.stock > 0) add(p);
+          if (!isIngredient(p) && (isMenu(p) || p.stock > 0)) add(p);
         }}
       />
 

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   Barcode,
   Camera,
+  Carrot,
+  ChefHat,
   CheckCircle2,
   ImagePlus,
   Info,
@@ -10,6 +12,7 @@ import {
   RefreshCw,
   ScanBarcode,
   Sparkles,
+  Trash2,
   TrendingDown,
   TrendingUp,
   Wand2,
@@ -26,7 +29,8 @@ import { lookupBarcode } from '../lib/productLookup';
 import { uniqueEan13, uploadProductPhoto } from '../lib/storage';
 import { fmtMoney } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
-import type { Product, ProductInput } from '../lib/types';
+import { INGREDIENT_UNITS, recipeCost } from '../lib/recipes';
+import type { Product, ProductInput, ProductKind } from '../lib/types';
 
 interface Props {
   open: boolean;
@@ -58,6 +62,7 @@ const empty: ProductInput = {
   low_stock_threshold: 5,
   unit: 'pc',
   is_active: true,
+  kind: 'item',
 };
 
 export default function ProductForm({ open, onClose, product, initialCode, categories, onSaved, onExisting }: Props) {
@@ -76,6 +81,10 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
   const [costMode, setCostMode] = useState<'piece' | 'pack'>('piece');
   const [pack, setPack] = useState({ price: '', size: '12', count: '1' });
   const [fillStock, setFillStock] = useState(true);
+  // menu items: their recipe (ingredient + amount per serving)
+  const [recipe, setRecipe] = useState<{ ingredient_id: string; qty: string }[]>([]);
+  const [ingredients, setIngredients] = useState<Product[]>([]);
+  const kind: ProductKind = form.kind ?? 'item';
   const tail = useRef(randomTail());
   const wordTouched = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -91,6 +100,14 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     tail.current = randomTail();
     wordTouched.current = false;
     setFillStock(true);
+    setRecipe([]);
+    if (product && product.kind === 'menu') {
+      supabase
+        .from('recipe_items')
+        .select('ingredient_id, qty')
+        .eq('menu_id', product.id)
+        .then(({ data }) => setRecipe(((data ?? []) as { ingredient_id: string; qty: number }[]).map((l) => ({ ingredient_id: l.ingredient_id, qty: String(l.qty) }))));
+    }
     if (product?.pack_size && product.pack_size > 1) {
       setCostMode('pack');
       setPack({ price: String(round2(Number(product.cost) * product.pack_size)), size: String(product.pack_size), count: '1' });
@@ -100,7 +117,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     }
     if (product) {
       const { id: _i, created_by: _c, updated_by: _u, created_at: _ca, updated_at: _ua, ...rest } = product;
-      setForm({ ...rest, description: rest.description ?? '', category: rest.category ?? '', barcode: rest.barcode ?? '', word_code: rest.word_code ?? '' });
+      setForm({ ...rest, kind: rest.kind ?? 'item', description: rest.description ?? '', category: rest.category ?? '', barcode: rest.barcode ?? '', word_code: rest.word_code ?? '' });
       setSource('existing');
       setStep('form');
       wordTouched.current = true;
@@ -112,6 +129,43 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, product, initialCode]);
+
+  // ingredients to choose from (menu items only)
+  useEffect(() => {
+    if (!open || kind !== 'menu') return;
+    supabase
+      .from('products')
+      .select('*')
+      .eq('kind', 'ingredient')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => setIngredients(((data as Product[]) ?? []).map((p) => ({ ...p, cost: Number(p.cost) }))));
+  }, [open, kind]);
+
+  const ingById = useMemo(() => new Map(ingredients.map((i) => [i.id, i])), [ingredients]);
+  const recipeLines = useMemo(
+    () => recipe.filter((l) => l.ingredient_id && Math.trunc(Number(l.qty)) > 0).map((l) => ({ ingredient_id: l.ingredient_id, qty: Math.trunc(Number(l.qty)) })),
+    [recipe],
+  );
+  const servingCost = useMemo(() => recipeCost(recipeLines, ingById), [recipeLines, ingById]);
+  const makeable = useMemo(
+    () => (recipeLines.length ? Math.min(...recipeLines.map((l) => Math.floor(Math.max(0, ingById.get(l.ingredient_id)?.stock ?? 0) / l.qty))) : null),
+    [recipeLines, ingById],
+  );
+  // a menu item's cost is its recipe cost
+  useEffect(() => {
+    if (kind === 'menu') setForm((f) => ({ ...f, cost: round4(servingCost) }));
+  }, [kind, servingCost]);
+
+  const setKind = (k: ProductKind) => {
+    setForm((f) => ({
+      ...f,
+      kind: k,
+      unit: k === 'ingredient' ? (INGREDIENT_UNITS.includes(f.unit) ? f.unit : 'g') : k === 'menu' ? 'pc' : f.unit,
+      price: k === 'ingredient' ? 0 : f.price,
+    }));
+    if (k === 'menu') setCostMode('piece');
+  };
 
   // free the preview URL
   useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.url); }, [photo]);
@@ -259,28 +313,37 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
       word_code: form.word_code ? normaliseCode(form.word_code) : null,
       price: Number(form.price),
       cost: Number(form.cost) || 0,
-      pack_size: costMode === 'pack' ? packSize : null,
-      stock: Math.trunc(Number(form.stock) || 0),
+      kind,
+      pack_size: costMode === 'pack' && kind !== 'menu' ? packSize : null,
+      stock: kind === 'menu' ? 0 : Math.trunc(Number(form.stock) || 0),
       low_stock_threshold: Math.trunc(Number(form.low_stock_threshold) || 0),
     };
     if (!payload.barcode) {
       failure('No barcode yet', 'Upload a photo of the barcode, scan it with the camera, or generate one.');
       return;
     }
-    if (costMode === 'pack' && (!(packPrice > 0) || packSize < 2)) {
+    if (kind === 'ingredient') payload.price = 0;
+    if (kind === 'menu') payload.cost = round4(servingCost);
+    if (kind === 'menu' && recipeLines.length === 0) {
+      failure('Recipe is empty', 'Add at least one ingredient and how much one serving uses.');
+      return;
+    }
+    if (costMode === 'pack' && kind !== 'menu' && (!(packPrice > 0) || packSize < 2)) {
       failure('Pack details missing', 'Enter the price of one pack and how many pieces are inside (2 or more).');
       return;
     }
 
     const priceChanged = editing && Number(product!.price) !== payload.price;
-    const loss = payload.cost > 0 && payload.price < payload.cost;
+    const loss = kind !== 'ingredient' && payload.cost > 0 && payload.price < payload.cost;
     const each = payload.price - payload.cost;
     const ok = await confirmAction({
       title: editing ? 'Save changes?' : 'Add this product?',
       html:
-        `<b>${esc(payload.name)}</b> · ${fmtMoney(payload.price)} per ${esc(payload.unit)}<br/><span class="mono small">${esc(payload.barcode)}</span>` +
+        `<b>${esc(payload.name)}</b> · ${kind === 'ingredient' ? `Ingredient · ${fmtMoney(payload.cost)} per ${esc(payload.unit)}` : `${fmtMoney(payload.price)} per ${esc(payload.unit)}`}<br/>` +
+        (kind === 'menu' ? `<span class="muted">${recipeLines.length} ingredient(s) in the recipe</span><br/>` : '') +
+        `<span class="mono small">${esc(payload.barcode)}</span>` +
         (priceChanged ? `<br/><span class="muted">Price: ${fmtMoney(product!.price)} → <b>${fmtMoney(payload.price)}</b></span>` : '') +
-        (payload.cost > 0 && !loss
+        (payload.cost > 0 && !loss && kind !== 'ingredient'
           ? `<br/><span class="muted">Cost ${fmtMoney(payload.cost)} · profit <b>${fmtMoney(each)}</b> per ${esc(payload.unit)}` +
             (costMode === 'pack' ? ` · <b>${fmtMoney(each * packSize)}</b> per pack of ${packSize}` : '') +
             '</span>'
@@ -326,6 +389,17 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
         throw error;
       }
       if (!saved) throw new Error('Could not save product.');
+      // keep the recipe in step with the menu item
+      if (kind === 'menu' || product?.kind === 'menu') {
+        const { error: delErr } = await supabase.from('recipe_items').delete().eq('menu_id', saved.id);
+        if (delErr) throw delErr;
+        if (kind === 'menu' && recipeLines.length) {
+          const { error: insErr } = await supabase
+            .from('recipe_items')
+            .insert(recipeLines.map((l) => ({ menu_id: saved!.id, ingredient_id: l.ingredient_id, qty: l.qty })));
+          if (insErr) throw insErr;
+        }
+      }
       onSaved(saved);
       onClose();
       success(editing ? 'Changes saved' : 'Product added', saved.name);
@@ -407,6 +481,29 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
             <span>The system creates a unique barcode and word code you can print as a label.</span>
             <em>For home-made, repacked or store-owned items</em>
           </button>
+          <div className="choose-food">
+            <span className="muted small">Food &amp; drinks you make?</span>
+            <button
+              type="button"
+              className="chip-btn"
+              onClick={() => {
+                setKind('menu');
+                generateCode();
+              }}
+            >
+              <ChefHat size={14} /> Menu item with a recipe
+            </button>
+            <button
+              type="button"
+              className="chip-btn"
+              onClick={() => {
+                setKind('ingredient');
+                generateCode();
+              }}
+            >
+              <Carrot size={14} /> Ingredient
+            </button>
+          </div>
           <button
             type="button"
             className="link choose-alt"
@@ -429,6 +526,28 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                 <span>{note}</span>
               </div>
             )}
+
+            <div className="kind-pick">
+              <span className="muted small">This is</span>
+              <span className="mini-seg" role="group" aria-label="Product kind">
+                <button type="button" className={kind === 'item' ? 'on' : ''} onClick={() => setKind('item')}>
+                  <Package size={12} /> Item
+                </button>
+                <button type="button" className={kind === 'menu' ? 'on' : ''} onClick={() => setKind('menu')}>
+                  <ChefHat size={12} /> Menu item
+                </button>
+                <button type="button" className={kind === 'ingredient' ? 'on' : ''} onClick={() => setKind('ingredient')}>
+                  <Carrot size={12} /> Ingredient
+                </button>
+              </span>
+              <small className="muted kind-hint">
+                {kind === 'menu'
+                  ? 'Made to order — selling it uses up its ingredients.'
+                  : kind === 'ingredient'
+                    ? 'Used in recipes. Not sold at the register.'
+                    : 'Sold as is, with its own stock.'}
+              </small>
+            </div>
 
             <label className="field">
               <span>
@@ -470,7 +589,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
 
             <label className="field">
               <span>Product name</span>
-              <input ref={nameRef} className="input" required value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={scan === 'lookup' ? 'Looking up product…' : 'e.g. Blue Hair Clip'} />
+              <input ref={nameRef} className="input" required value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={scan === 'lookup' ? 'Looking up product…' : kind === 'menu' ? 'e.g. Classic Burger' : kind === 'ingredient' ? 'e.g. Burger patty' : 'e.g. Blue Hair Clip'} />
             </label>
 
             <label className="field">
@@ -513,17 +632,32 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
               <label className="field">
                 <span>Unit</span>
                 <select className="input" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-                  {['pc', 'pack', 'box', 'bottle', 'kg', 'g', 'L', 'ml', 'dozen', 'set'].map((u) => (
+                  {(kind === 'ingredient'
+                    ? [...INGREDIENT_UNITS, 'kg', 'L']
+                    : kind === 'menu'
+                      ? ['pc', 'serving', 'order', 'cup', 'set', 'bottle']
+                      : ['pc', 'pack', 'box', 'bottle', 'kg', 'g', 'L', 'ml', 'dozen', 'set']
+                  )
+                    .concat(form.unit && ![...INGREDIENT_UNITS, 'kg', 'L', 'pc', 'serving', 'order', 'cup', 'set', 'bottle', 'pack', 'box', 'dozen'].includes(form.unit) ? [form.unit] : [])
+                    .map((u) => (
                     <option key={u}>{u}</option>
                   ))}
                 </select>
               </label>
-              <label className="field">
-                <span>
-                  Selling price <small className="muted">— per {form.unit}</small>
-                </span>
-                <input className="input" type="number" min="0" step="0.01" required value={form.price} onChange={(e) => set('price', e.target.value as unknown as number)} />
-              </label>
+              {kind !== 'ingredient' && (
+                <label className="field">
+                  <span>
+                    Selling price <small className="muted">— per {form.unit}</small>
+                  </span>
+                  <input className="input" type="number" min="0" step="0.01" required value={form.price} onChange={(e) => set('price', e.target.value as unknown as number)} />
+                </label>
+              )}
+              {kind === 'menu' ? (
+                <div className="field">
+                  <span>Cost per {form.unit}</span>
+                  <input className="input" readOnly tabIndex={-1} value={recipeLines.length ? `${fmtMoney(servingCost)} from the recipe` : 'Add ingredients below'} />
+                </div>
+              ) : (
               <div className="field">
                 <span className="cost-head">
                   Cost
@@ -542,6 +676,19 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                   <input className="input" readOnly tabIndex={-1} value={Number(form.cost) > 0 ? `${fmtMoney(Number(form.cost))} per ${form.unit}` : 'Fill in the pack below'} />
                 )}
               </div>
+              )}
+
+              {kind === 'menu' && (
+                <RecipeBuilder
+                  recipe={recipe}
+                  setRecipe={setRecipe}
+                  ingredients={ingredients}
+                  ingById={ingById}
+                  cost={servingCost}
+                  makeable={makeable}
+                  unit={form.unit}
+                />
+              )}
 
               {costMode === 'pack' && (
                 <div className="pack-box reveal">
@@ -552,7 +699,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                     </label>
                     <span className="pack-op" aria-hidden>÷</span>
                     <label className="field">
-                      <span>Pieces per pack</span>
+                      <span>{kind === 'ingredient' ? `${form.unit} per pack` : 'Pieces per pack'}</span>
                       <input className="input" type="number" min="2" step="1" value={pack.size} onChange={(e) => setPack((p) => ({ ...p, size: e.target.value }))} />
                     </label>
                     <span className="pack-op" aria-hidden>=</span>
@@ -585,7 +732,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                     {profit.each < 0 ? (
                       <>
                         <b>Loss of {fmtMoney(-profit.each)} per {form.unit}</b> — the selling price is lower than the cost.
-                        {costMode === 'piece' ? (
+                        {costMode === 'piece' && kind !== 'menu' ? (
                           <>
                             {' '}Is {fmtMoney(profit.cost)} the price of a whole pack?{' '}
                             <button type="button" className="link" onClick={switchToPack}>
@@ -611,8 +758,10 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                 </div>
               )}
 
+              {kind !== 'menu' && (
+              <>
               <label className="field">
-                <span>{editing ? 'Stock (use “Adjust stock”)' : 'Starting stock'}</span>
+                <span>{editing ? 'Stock (use “Adjust stock”)' : `Starting stock (${form.unit})`}</span>
                 <input
                   className="input"
                   type="number"
@@ -626,6 +775,8 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                 <span>Low-stock alert at</span>
                 <input className="input" type="number" min="0" step="1" value={form.low_stock_threshold} onChange={(e) => set('low_stock_threshold', e.target.value as unknown as number)} />
               </label>
+              </>
+              )}
             </div>
 
             <label className="field">
@@ -723,3 +874,90 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/* ---------- recipe builder (menu items) ---------- */
+
+function RecipeBuilder({
+  recipe,
+  setRecipe,
+  ingredients,
+  ingById,
+  cost,
+  makeable,
+  unit,
+}: {
+  recipe: { ingredient_id: string; qty: string }[];
+  setRecipe: (fn: (r: { ingredient_id: string; qty: string }[]) => { ingredient_id: string; qty: string }[]) => void;
+  ingredients: Product[];
+  ingById: Map<string, Product>;
+  cost: number;
+  makeable: number | null;
+  unit: string;
+}) {
+  const used = new Set(recipe.map((l) => l.ingredient_id));
+  const update = (i: number, patch: Partial<{ ingredient_id: string; qty: string }>) =>
+    setRecipe((r) => r.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+
+  return (
+    <div className="recipe-box reveal">
+      <div className="recipe-head">
+        <span>
+          <ChefHat size={15} /> <b>Recipe</b> <span className="muted">— what one {unit} uses</span>
+        </span>
+        {makeable !== null && (
+          <span className={`recipe-make ${makeable <= 0 ? 'none' : makeable <= 5 ? 'low' : ''}`}>
+            Can make <b>{makeable}</b> now
+          </span>
+        )}
+      </div>
+
+      {ingredients.length === 0 ? (
+        <p className="muted small">
+          No ingredients yet. Save this, then add ingredients first: <b>Add product → Ingredient</b> (e.g. Bun in pc, Patty in pc, Mayonnaise in ml).
+        </p>
+      ) : (
+        <>
+          {recipe.map((l, i) => {
+            const ing = ingById.get(l.ingredient_id);
+            const q = Math.trunc(Number(l.qty)) || 0;
+            return (
+              <div key={i} className="recipe-line">
+                <select className="input" value={l.ingredient_id} onChange={(e) => update(i, { ingredient_id: e.target.value })} aria-label="Ingredient">
+                  <option value="">Choose ingredient…</option>
+                  {ingredients
+                    .filter((x) => x.id === l.ingredient_id || !used.has(x.id))
+                    .map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name} ({x.stock} {x.unit} left)
+                      </option>
+                    ))}
+                </select>
+                <div className="recipe-qty">
+                  <input className="input" type="number" min="1" step="1" value={l.qty} onChange={(e) => update(i, { qty: e.target.value })} aria-label="Amount" />
+                  <span className="muted">{ing?.unit ?? ''}</span>
+                </div>
+                <span className="recipe-cost">{ing && q > 0 ? fmtMoney(Number(ing.cost) * q) : '—'}</span>
+                <button type="button" className="icon-btn danger" onClick={() => setRecipe((r) => r.filter((_, j) => j !== i))} aria-label="Remove ingredient">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            );
+          })}
+          <div className="recipe-foot">
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              disabled={used.size >= ingredients.length}
+              onClick={() => setRecipe((r) => [...r, { ingredient_id: '', qty: '1' }])}
+            >
+              + Add ingredient
+            </button>
+            <span>
+              Cost per {unit}: <b>{fmtMoney(cost)}</b>
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
