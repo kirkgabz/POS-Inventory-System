@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { MessageProvider } from './context/MessageContext';
 import { useEffect } from 'react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { STORE_NAME } from './lib/format';
@@ -21,6 +22,7 @@ import PaymentsPage from './pages/PaymentsPage';
 import DtrPage from './pages/DtrPage';
 import ReceiptSettingsPage from './pages/ReceiptSettingsPage';
 import ActivityPage from './pages/ActivityPage';
+import MessagesPage from './pages/MessagesPage';
 import type { ReactNode } from 'react';
 
 function Splash() {
@@ -79,6 +81,7 @@ function Gate() {
 
   return (
     <NotificationProvider>
+      <MessageProvider>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
@@ -86,6 +89,7 @@ function Gate() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="dtr" element={<DtrPage />} />
+          <Route path="messages" element={<MessagesPage />} />
           <Route path="activity" element={<AdminOnly><ActivityPage /></AdminOnly>} />
           <Route path="staff" element={<AdminOnly><StaffPage /></AdminOnly>} />
           <Route path="payments" element={<AdminOnly><PaymentsPage /></AdminOnly>} />
@@ -94,6 +98,7 @@ function Gate() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      </MessageProvider>
     </NotificationProvider>
   );
 }

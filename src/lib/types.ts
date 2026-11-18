@@ -176,3 +176,28 @@ export interface ProductActivity {
   note: string | null;
   created_at: string;
 }
+
+export interface Message {
+  id: string;
+  sender_id: string | null;
+  sender_name: string;
+  sender_role: string | null;
+  kind: 'message' | 'reminder';
+  title: string | null;
+  body: string;
+  due_at: string | null;
+  important: boolean;
+  to_all: boolean;
+  parent_id: string | null;
+  created_at: string;
+}
+
+export interface MessageRecipient {
+  message_id: string;
+  recipient_id: string;
+  read_at: string | null;
+  done_at: string | null;
+  created_at: string;
+  recipient?: { full_name: string } | null;
+  message?: Message | null;
+}

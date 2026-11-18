@@ -6,6 +6,7 @@ import {
   History,
   LayoutDashboard,
   LogOut,
+  MessageSquareText,
   Menu,
   Package,
   Printer,
@@ -18,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useMessages } from '../context/MessageContext';
+import MessagePopups from './MessagePopups';
 import { confirmAction, toast } from '../lib/alerts';
 import { BRAND, initials } from '../lib/format';
 import { LogoMark } from './Logo';
@@ -26,6 +29,7 @@ import NotificationCards from './NotificationCards';
 export default function Layout() {
   const { profile, isAdmin, canManageProducts, signOut } = useAuth();
   const { unread } = useNotifications();
+  const { unread: unreadMsgs } = useMessages();
   const [open, setOpen] = useState(false);
   const location = useLocation();
 
@@ -37,6 +41,7 @@ export default function Layout() {
     { to: '/products', label: 'Inventory', icon: Package, show: true },
     { to: '/sales', label: 'Sales', icon: ReceiptText, show: true },
     { to: '/dtr', label: 'Time clock', icon: Clock3, show: true },
+    { to: '/messages', label: 'Messages', icon: MessageSquareText, show: true, badge: unreadMsgs },
     { to: '/activity', label: 'Inventory log', icon: History, show: isAdmin },
     { to: '/staff', label: 'Staff & Access', icon: Users, show: isAdmin },
     { to: '/payments', label: 'Payment accounts', icon: Wallet, show: isAdmin },
@@ -117,6 +122,7 @@ export default function Layout() {
       </main>
 
       {isAdmin && <NotificationCards />}
+      <MessagePopups />
     </div>
   );
 }

@@ -965,3 +965,57 @@ body::before { opacity: 0.18; }
   .log-who { grid-column: 2; min-width: 0; }
   .who-filter, .who-filter .input { width: 100%; }
 }
+
+/* ---------- messages & reminders ---------- */
+.msg-stack { position: fixed; right: 20px; top: 20px; z-index: 91; display: grid; gap: 12px; width: min(380px, calc(100vw - 32px)); }
+.msg-pop { --tone: var(--accent); --tone-soft: var(--accent-soft); }
+.msg-pop.is-reminder { --tone: #b07a12; --tone-soft: var(--ochre-soft); }
+.msg-pop.is-important { --tone: var(--danger); --tone-soft: var(--danger-soft); }
+.msg-pop-body { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.due-chip { display: inline-flex; align-items: center; width: fit-content; font-size: 11.5px; font-weight: 500; padding: 2px 9px; border-radius: 999px; background: var(--ochre-soft); color: #7a5410; }
+.due-chip.over { background: var(--danger-soft); color: #9a3326; }
+.tag-important { background: var(--danger-soft); color: #9a3326; }
+.tag-done { background: var(--sage-soft); color: #2f6422; }
+.msg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.msg-row { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); animation: reveal 0.35s var(--ease) both; transition: border-color 0.2s, box-shadow 0.2s; }
+.msg-row:hover { border-color: var(--ink-3); }
+.msg-row.unread { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.msg-row.is-done { opacity: 0.6; }
+.msg-row.is-done .msg-top b { text-decoration: line-through; }
+.msg-kind { width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.msg-row.is-reminder .msg-kind { background: var(--ochre-soft); color: #b07a12; }
+.msg-check { flex-shrink: 0; border: 0; background: none; color: var(--ink-3); display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; transition: color 0.2s, background 0.2s; }
+.msg-check:hover { color: var(--sage); background: var(--sage-soft); }
+.msg-row.is-done .msg-check { color: var(--sage); }
+.msg-main { flex: 1; min-width: 0; border: 0; background: none; text-align: left; display: grid; gap: 4px; padding: 0; color: inherit; }
+.msg-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.msg-top .tag { margin-left: 0; }
+.msg-top time { margin-left: auto; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.msg-snippet { font-size: 13.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); flex-wrap: wrap; }
+.msg-progress { margin-left: auto; font-weight: 500; color: var(--ink-2); }
+.msg-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.to-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.to-picker .chip-btn { display: inline-flex; align-items: center; gap: 5px; }
+.thread { display: grid; gap: 12px; }
+.bubble { padding: 14px 16px; border-radius: var(--r); background: var(--paper); border: 1px solid var(--line-soft); display: grid; gap: 8px; max-width: 88%; }
+.bubble.root { max-width: none; background: var(--card); border-color: var(--line); }
+.bubble.root.is-reminder { border-left: 4px solid #d6a23a; }
+.bubble.me { justify-self: end; background: var(--accent-soft); border-color: transparent; }
+.bubble header { display: flex; align-items: baseline; gap: 4px; font-size: 13px; }
+.bubble header time { margin-left: auto; padding-left: 10px; font-size: 11.5px; color: var(--ink-3); }
+.bubble-body { white-space: pre-line; font-size: 14.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.bubble-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.bubble-tags .tag { margin-left: 0; }
+.bubble .btn { width: fit-content; }
+.recips ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.recips li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
+.recips .tag { margin-left: 0; }
+.reply-bar { display: flex; gap: 8px; width: 100%; align-items: center; }
+.reply-bar .reply-to { width: auto; max-width: 200px; }
+@media (max-width: 640px) {
+  .msg-stack { right: 16px; top: 64px; }
+  .reply-bar { flex-wrap: wrap; }
+  .reply-bar .reply-to { max-width: none; width: 100%; }
+  .bubble { max-width: 100%; }
+}

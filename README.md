@@ -31,6 +31,11 @@ It handles everyday store work in one place: selling at the counter, keeping tra
 - An **Inventory log** for the store owner lists every product added, price change, edit and restock: who did it and when, filterable by person and date.
 - Every order records **who took it**, whether a staff member or the store owner.
 
+### Messages & reminders
+- The store owner sends a **message** (a note) or a **reminder** (with an optional due date and time) to **one, several or all staff**. Either kind can be marked **important**.
+- Staff get it instantly as a **pop-up**, with an unread count on **Messages** in the left menu. They can **reply** to the owner and **tick off reminders** when done.
+- The owner sees **who has read it** and **who has finished each reminder**, and can reply to everyone or to one person.
+
 ### Time clock (DTR)
 - Staff **time in and time out**. The time comes from the system, not the device, so it can't be faked by changing the phone's clock.
 - **Optional face check:** a quick live face scan with a blink test. The owner decides whether it's required for time in, for time out, or both.
@@ -105,7 +110,11 @@ In **Inventory**, click a product's **Adjust stock**. Add stock **by piece or by
 ### 6. Time in / time out (staff)
 Open **Time clock** and tap **Time in** when your shift starts and **Time out** when it ends. If the face check is on, look at the camera and blink when asked. The first time, you'll register your face once.
 
-### 7. Checking sales and staff hours (store owner)
+### 7. Messages and reminders
+- **Store owner:** open **Messages → New message** or **New reminder**, choose **All staff** or tap the names you want, write it, add a due time for reminders if you like, and send. **Sent** shows who has read it and who has finished it.
+- **Staff:** new messages pop up on screen. Open **Messages** to read and reply, and tap the circle next to a reminder to mark it **done**.
+
+### 8. Checking sales and staff hours (store owner)
 - **Sales:** pick day, week, month or year to see totals and transactions. Every order shows **who took it** (staff name, or "Store owner"), and you can filter to one person. **Download Excel** for the full report.
 - **Inventory log:** see every product added, price or detail change, restock and stock removal, with **who did it and when**. Filter by person, by date (today, last 7 days, this month or chosen dates) and by type of change, then download it as Excel.
 - **Time clock:** see who's on duty, review time records, fix forgotten time-outs, and download the DTR.
