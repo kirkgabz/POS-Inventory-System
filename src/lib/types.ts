@@ -94,9 +94,19 @@ export interface AppNotification {
   created_at: string;
 }
 
+export interface CartOption {
+  id: string;
+  name: string;
+  price_delta: number;
+}
+
 export interface CartLine {
   product: Product;
   quantity: number;
+  /** chosen add-ons / options (menu items) */
+  options?: CartOption[];
+  /** product id + option ids — one line per different combination */
+  key?: string;
 }
 
 export interface SaleResult {
@@ -165,7 +175,7 @@ export interface DtrStatus {
   open: Attendance | null;
 }
 
-export type ActivityAction = 'added' | 'price' | 'edited' | 'restock' | 'stock_in' | 'stock_out' | 'deleted';
+export type ActivityAction = 'added' | 'price' | 'edited' | 'restock' | 'stock_in' | 'stock_out' | 'waste' | 'deleted';
 
 export interface ProductActivity {
   id: string;
@@ -206,10 +216,30 @@ export interface MessageRecipient {
   message?: Message | null;
 }
 
-export type ProductKind = 'item' | 'menu' | 'ingredient';
+export type ProductKind = 'item' | 'menu' | 'ingredient' | 'combo';
 
 export interface RecipeLine {
   menu_id: string;
   ingredient_id: string;
+  qty: number;
+}
+
+export interface MenuOption {
+  id: string;
+  menu_id: string;
+  name: string;
+  price_delta: number;
+  sort: number;
+}
+
+export interface MenuOptionItem {
+  option_id: string;
+  ingredient_id: string;
+  qty: number;
+}
+
+export interface ComboItem {
+  combo_id: string;
+  component_id: string;
   qty: number;
 }

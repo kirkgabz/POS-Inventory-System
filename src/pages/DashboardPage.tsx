@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../hooks/useProducts';
 import { supabase } from '../lib/supabase';
 import { fmtMoney, takenBy, timeAgo } from '../lib/format';
-import { isMenu } from '../lib/recipes';
+import { isMade } from '../lib/recipes';
 import type { Sale } from '../lib/types';
 
 export default function DashboardPage() {
@@ -53,7 +53,7 @@ export default function DashboardPage() {
   }, [sales]);
 
   const low = useMemo(
-    () => products.filter((p) => !isMenu(p) && p.stock <= p.low_stock_threshold).sort((a, b) => a.stock - b.stock).slice(0, 6),
+    () => products.filter((p) => !isMade(p) && p.stock <= p.low_stock_threshold).sort((a, b) => a.stock - b.stock).slice(0, 6),
     [products],
   );
 
@@ -78,7 +78,7 @@ export default function DashboardPage() {
         <Stat label={isAdmin ? "Today's revenue" : 'Your sales today'} value={fmtMoney(stats.revenue)} icon={<TrendingUp size={18} />} accent loading={loading} />
         <Stat label="Transactions" value={String(stats.count)} icon={<Receipt size={18} />} loading={loading} />
         <Stat label="Items sold" value={String(stats.items)} icon={<Package size={18} />} loading={loading} />
-        <Stat label="Low / out of stock" value={String(products.filter((p) => !isMenu(p) && p.stock <= p.low_stock_threshold).length)} icon={<AlertTriangle size={18} />} warn />
+        <Stat label="Low / out of stock" value={String(products.filter((p) => !isMade(p) && p.stock <= p.low_stock_threshold).length)} icon={<AlertTriangle size={18} />} warn />
       </div>
 
       <div className="dash-grid">

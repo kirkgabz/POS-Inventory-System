@@ -6,6 +6,7 @@ const LABEL: Record<string, string> = {
   restock: 'Restocked',
   stock_in: 'Stock added',
   stock_out: 'Stock removed',
+  waste: 'Waste',
   price: 'Price change',
   edited: 'Edited',
   deleted: 'Deleted',
@@ -41,7 +42,7 @@ export async function downloadActivityExcel(rows: ProductActivity[], label: stri
       g.unitsIn += Math.max(0, r.stock_change ?? 0);
     } else if (r.action === 'price') g.prices++;
     else if (r.action === 'edited' || r.action === 'deleted') g.edits++;
-    else if (r.action === 'stock_out') g.unitsOut += Math.abs(r.stock_change ?? 0);
+    else if (r.action === 'stock_out' || r.action === 'waste') g.unitsOut += Math.abs(r.stock_change ?? 0);
     else g.unitsIn += r.stock_change ?? 0;
     per.set(k, g);
   });

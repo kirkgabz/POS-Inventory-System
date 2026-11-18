@@ -17,6 +17,8 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
   const [qty, setQty] = useState(1);
   const [reason, setReason] = useState<'restock' | 'adjustment'>('restock');
   const [note, setNote] = useState('');
+  // why stock is being removed — spoiled/damaged count as waste
+  const [why, setWhy] = useState<keyof typeof WHY>('spoiled');
   const [busy, setBusy] = useState(false);
   // receive by pack: packs × pieces per pack, optionally with the new pack price
   const [byPack, setByPack] = useState(false);
@@ -28,6 +30,7 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
     setQty(1);
     setReason('restock');
     setNote('');
+    setWhy('spoiled');
     const size = product?.pack_size ?? null;
     setByPack(!!size);
     setPackSize(String(size ?? 12));
@@ -49,11 +52,12 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
     if (!qty || qty < 1) return;
     if (packing && size < 2) return failure('Pieces per pack', 'A pack should have 2 or more pieces.');
     const ok = await confirmAction({
-      title: 'Update stock?',
+      title: dir === 'out' && WHY[why].reason === 'waste' ? 'Record as waste?' : 'Update stock?',
       html:
         `<b>${esc(product.name)}</b><br/>` +
         (packing ? `${qty} pack(s) × ${size} = <b>${pieces}</b> ${esc(product.unit)}<br/>` : '') +
         `${product.stock} → <b>${after}</b> ${esc(product.unit)}` +
+        (dir === 'out' ? `<br/><span class="muted">${WHY[why].label}${Number(product.cost) > 0 ? ` · ${fmtMoney(Number(product.cost) * qty)}` : ''}</span>` : '') +
         (costChanges
           ? `<br/><span class="muted">Cost per ${esc(product.unit)}: ${fmtMoney(product.cost)} → <b>${fmtMoney(newUnitCost!)}</b></span>` +
             (Number(product.price) < newUnitCost!
@@ -68,8 +72,11 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
     const { data, error } = await supabase.rpc('adjust_stock', {
       p_product_id: product.id,
       p_change: change,
-      p_reason: dir === 'out' ? 'adjustment' : reason,
-      p_note: (packing ? `${qty} pack(s) × ${size}${newPackPrice ? ` @ ${fmtMoney(newPackPrice)}` : ''}` + (note ? ' · ' : '') : '') + note || null,
+      p_reason: dir === 'out' ? WHY[why].reason : reason,
+      p_note:
+        dir === 'out'
+          ? `${WHY[why].label}${note ? ` · ${note}` : ''}`
+          : (packing ? `${qty} pack(s) × ${size}${newPackPrice ? ` @ ${fmtMoney(newPackPrice)}` : ''}` + (note ? ' · ' : '') : '') + note || null,
     });
     if (error) {
       setBusy(false);
@@ -173,6 +180,25 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
           </div>
         )}
 
+        {dir === 'out' && (
+          <div className="field">
+            <span>Why is it being removed?</span>
+            <div className="chips">
+              {(Object.keys(WHY) as (keyof typeof WHY)[]).map((k) => (
+                <button key={k} type="button" className={`chip-btn ${why === k ? 'on' : ''}`} onClick={() => setWhy(k)}>
+                  {WHY[k].label}
+                </button>
+              ))}
+            </div>
+            {WHY[why].reason === 'waste' && (
+              <small className="muted">
+                Counted as <b>waste</b>
+                {Number(product.cost) > 0 ? ` · about ${fmtMoney(Number(product.cost) * qty)} lost` : ''}. It shows in the inventory log and usage report.
+              </small>
+            )}
+          </div>
+        )}
+
         {dir === 'in' && (
           <label className="field">
             <span>Reason</span>
@@ -192,3 +218,11 @@ export default function StockAdjust({ product, onClose, onSaved }: Props) {
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+const WHY = {
+  spoiled: { label: 'Spoiled / expired', reason: 'waste' },
+  damaged: { label: 'Damaged', reason: 'waste' },
+  used: { label: 'Used in store / staff meal', reason: 'waste' },
+  lost: { label: 'Lost / missing', reason: 'adjustment' },
+  count: { label: 'Count correction', reason: 'adjustment' },
+} as const;

@@ -17,7 +17,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../hooks/useProducts';
 import { useRecipes } from '../hooks/useRecipes';
-import { canMake, isIngredient, isMenu, shortfalls } from '../lib/recipes';
+import { canMakeOf, cartNeeds, isIngredient, isMade, isMenu, keyOf, lineKey, lineName, needsOf, optionText, shortOf, unitPrice } from '../lib/recipes';
+import OptionPicker from '../components/OptionPicker';
 import { usePaymentAccounts } from '../hooks/usePaymentAccounts';
 import CameraScanner, { beep } from '../components/CameraScanner';
 import ProductForm from '../components/ProductForm';
@@ -28,7 +29,7 @@ import { confirmAction, failure, toast } from '../lib/alerts';
 import { normaliseCode } from '../lib/codes';
 import { fmtMoney, methodLabel } from '../lib/format';
 import { printReceipt } from '../lib/receipt';
-import type { CartLine, PaymentAccount, Product, SaleResult } from '../lib/types';
+import type { CartLine, CartOption, PaymentAccount, Product, SaleResult } from '../lib/types';
 
 const CART_KEY = 'jen-pos-cart';
 type Method = 'cash' | 'ewallet' | 'bank';
@@ -37,7 +38,7 @@ type Receipt = SaleResult & { lines: CartLine[]; at: string; method: Method; acc
 export default function PosPage() {
   const { profile, canManageProducts } = useAuth();
   const { products: catalogue, categories, findByCode: findAny, upsertLocal } = useProducts();
-  const { byMenu } = useRecipes();
+  const { data: recipes, optionsByMenu } = useRecipes();
   // ingredients are never sold at the register
   const products = useMemo(() => catalogue.filter((p) => !isIngredient(p)), [catalogue]);
   const byId = useMemo(() => new Map(catalogue.map((p) => [p.id, p])), [catalogue]);
@@ -49,22 +50,13 @@ export default function PosPage() {
     }
     return p;
   };
-  /** what a line can still go up to: items = stock, menu items = no hard limit */
-  const makeable = (p: Product) => (isMenu(p) ? canMake(byMenu.get(p.id), byId) : p.stock);
-  /** ingredients already needed by the menu items in the order (optionally skipping one line) */
-  const reservedBy = (lines: CartLine[], skip?: string) => {
-    const m = new Map<string, number>();
-    lines.forEach((l) => {
-      if (l.product.id === skip || !isMenu(l.product)) return;
-      byMenu.get(l.product.id)?.forEach((r) => m.set(r.ingredient_id, (m.get(r.ingredient_id) ?? 0) + r.qty * l.quantity));
-    });
-    return m;
-  };
-  /** warn-but-allow: which ingredients would run short for this many servings */
-  const shortText = (p: Product, servings: number, lines: CartLine[]) => {
-    const recipe = byMenu.get(p.id);
-    if (!recipe?.length) return `${p.name} has no recipe yet — no ingredients will be deducted`;
-    const short = shortfalls(recipe, byId, servings, reservedBy(lines, p.id));
+  /** menu items & combos: how many can be made now (null = no recipe) · items: stock */
+  const makeable = (p: Product) => (isMade(p) ? canMakeOf(p, recipes, byId) : p.stock);
+  /** warn-but-allow: what would run short if the order looked like `lines` (only `p`'s own parts) */
+  const shortText = (p: Product, optionIds: string[], lines: CartLine[]) => {
+    const own = needsOf(p, optionIds, 1, recipes, byId);
+    if (!own.size) return isMenu(p) ? `${p.name} has no recipe yet — no ingredients will be deducted` : null;
+    const short = shortOf(cartNeeds(lines, recipes, byId), byId, own.keys());
     return short.length ? `Low on ${short.map((x) => x.ingredient.name).join(', ')} — added anyway, the owner will be told` : null;
   };
   const { accounts } = usePaymentAccounts();
@@ -91,6 +83,7 @@ export default function PosPage() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [newCode, setNewCode] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [choosing, setChoosing] = useState<{ product: Product; qty: number } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -101,15 +94,23 @@ export default function PosPage() {
     }
   }, [cart]);
 
-  // keep cart prices/stock in sync with the live catalogue
+  // keep cart prices/stock/options in sync with the live catalogue
   useEffect(() => {
     if (!products.length) return;
     setCart((c) =>
       c
         .filter((l) => products.some((p) => p.id === l.product.id))
-        .map((l) => ({ ...l, product: products.find((p) => p.id === l.product.id)! })),
+        .map((l) => {
+          const product = products.find((p) => p.id === l.product.id)!;
+          const live = optionsByMenu.get(product.id) ?? [];
+          const options = (l.options ?? [])
+            .map((o) => live.find((x) => x.id === o.id))
+            .filter((o): o is NonNullable<typeof o> => !!o)
+            .map((o) => ({ id: o.id, name: o.name, price_delta: o.price_delta }));
+          return { ...l, product, options, key: lineKey(product.id, options.map((o) => o.id)) };
+        }),
     );
-  }, [products]);
+  }, [products, optionsByMenu]);
 
   /* ---------- payment accounts ---------- */
   const byKind = useMemo(
@@ -129,7 +130,7 @@ export default function PosPage() {
   }, [method, byKind]);
 
   /* ---------- totals ---------- */
-  const subtotal = useMemo(() => cart.reduce((s, l) => s + l.product.price * l.quantity, 0), [cart]);
+  const subtotal = useMemo(() => cart.reduce((s, l) => s + unitPrice(l) * l.quantity, 0), [cart]);
   const disc = Math.min(Math.max(Number(discount) || 0, 0), subtotal);
   const total = subtotal - disc;
   const paidNum = method === 'cash' ? Number(paid) || 0 : total;
@@ -137,22 +138,24 @@ export default function PosPage() {
   const itemCount = cart.reduce((s, l) => s + l.quantity, 0);
 
   /* ---------- cart ops ---------- */
-  /** returns false (not added), true (added) or a warning string (added, but ingredients are short) */
-  const add = (p: Product, qty = 1): boolean | string => {
-    const inCart = cart.find((l) => l.product.id === p.id)?.quantity ?? 0;
-    if (isMenu(p)) {
-      const warn = shortText(p, inCart + qty, cart);
-      setCart((c) => {
-        const i = c.findIndex((l) => l.product.id === p.id);
-        if (i === -1) return [...c, { product: p, quantity: qty }];
-        const next = c.slice();
-        next[i] = { ...next[i]!, quantity: next[i]!.quantity + qty };
-        return next;
-      });
-      setFlash(p.id);
+  /** returns false (not added), true (added) or a warning string (added, but stock is short) */
+  const add = (p: Product, qty = 1, options: CartOption[] = []): boolean | string => {
+    const key = lineKey(p.id, options.map((o) => o.id));
+    const merge = (c: CartLine[], q: number) => {
+      const i = c.findIndex((l) => keyOf(l) === key);
+      if (i === -1) return [...c, { product: p, quantity: q, options, key }];
+      const next = c.slice();
+      next[i] = { ...next[i]!, quantity: next[i]!.quantity + q };
+      return next;
+    };
+    if (isMade(p)) {
+      const warn = shortText(p, options.map((o) => o.id), merge(cart, qty));
+      setCart((c) => merge(c, qty));
+      setFlash(key);
       setTimeout(() => setFlash(null), 600);
       return warn ?? true;
     }
+    const inCart = cart.filter((l) => l.product.id === p.id).reduce((s, l) => s + l.quantity, 0);
     const room = p.stock - inCart;
     if (room <= 0) {
       beep(false);
@@ -161,57 +164,57 @@ export default function PosPage() {
     }
     const q = Math.min(qty, room);
     if (q < qty) toast(`Only ${p.stock} ${p.unit} in stock — added ${q}`, 'warning');
-    setCart((c) => {
-      const i = c.findIndex((l) => l.product.id === p.id);
-      if (i === -1) return [...c, { product: p, quantity: q }];
-      const next = c.slice();
-      next[i] = { ...next[i]!, quantity: next[i]!.quantity + q };
-      return next;
-    });
-    setFlash(p.id);
+    setCart((c) => merge(c, q));
+    setFlash(key);
     setTimeout(() => setFlash(null), 600);
     return true;
   };
 
-  const setQty = (id: string, qty: number) =>
-    setCart((c) =>
-      c.map((l) => {
-        if (l.product.id !== id) return l;
-        const q = Math.max(1, Math.trunc(qty) || 1);
-        if (isMenu(l.product)) {
-          if (q > l.quantity) {
-            const warn = shortText(l.product, q, c);
-            if (warn) toast(warn, 'warning');
-          }
-          return { ...l, quantity: q };
-        }
-        if (q > l.product.stock) {
-          toast(`Only ${l.product.stock} ${l.product.unit} in stock`, 'warning');
-          return { ...l, quantity: l.product.stock };
-        }
-        return { ...l, quantity: q };
-      }),
-    );
+  const setQty = (key: string, qty: number) => {
+    const line = cart.find((l) => keyOf(l) === key);
+    if (!line) return;
+    let q = Math.max(1, Math.trunc(qty) || 1);
+    if (isMade(line.product)) {
+      if (q > line.quantity) {
+        const next = cart.map((l) => (keyOf(l) === key ? { ...l, quantity: q } : l));
+        const warn = shortText(line.product, (line.options ?? []).map((o) => o.id), next);
+        if (warn) toast(warn, 'warning');
+      }
+    } else if (q > line.product.stock) {
+      toast(`Only ${line.product.stock} ${line.product.unit} in stock`, 'warning');
+      q = line.product.stock;
+    }
+    setCart((c) => c.map((l) => (keyOf(l) === key ? { ...l, quantity: q } : l)));
+  };
 
   const removeLine = async (l: CartLine) => {
-    if (await confirmAction({ title: 'Remove from order?', html: `<b>${esc(l.product.name)}</b> × ${l.quantity}`, confirmText: 'Remove', danger: true })) {
-      setCart((c) => c.filter((x) => x.product.id !== l.product.id));
+    if (await confirmAction({ title: 'Remove from order?', html: `<b>${esc(lineName(l))}</b> × ${l.quantity}`, confirmText: 'Remove', danger: true })) {
+      setCart((c) => c.filter((x) => keyOf(x) !== keyOf(l)));
       toast('Removed', 'info');
     }
   };
 
-  const pick = (p: Product) => {
-    if (!isMenu(p) && p.stock <= 0) return toast(`${p.name} is out of stock`, 'warning');
-    const res = add(p, addQty);
+  const added = (p: Product, qty: number, options: CartOption[]) => {
+    const res = add(p, qty, options);
     if (res) {
       beep();
-      if (typeof res === 'string') toast(`Added ${addQty > 1 ? `${addQty} × ` : ''}${p.name}. ${res}`, 'warning');
-      else toast(`Added ${addQty > 1 ? `${addQty} × ` : ''}${p.name}`);
+      const label = `${qty > 1 ? `${qty} × ` : ''}${p.name}${options.length ? ` (${options.map((o) => o.name).join(', ')})` : ''}`;
+      if (typeof res === 'string') toast(`Added ${label}. ${res}`, 'warning');
+      else toast(`Added ${label}`);
     }
+  };
+
+  const hasOptions = (p: Product) => isMenu(p) && (optionsByMenu.get(p.id)?.length ?? 0) > 0;
+
+  const pick = (p: Product) => {
+    if (!isMade(p) && p.stock <= 0) return toast(`${p.name} is out of stock`, 'warning');
+    // add-ons → let the cashier choose (plain is one tap / Enter)
+    if (hasOptions(p)) setChoosing({ product: p, qty: addQty });
+    else added(p, addQty, []);
     setQuery('');
     setAddQty(1);
     setSugOpen(false);
-    searchRef.current?.focus();
+    if (!hasOptions(p)) searchRef.current?.focus();
   };
 
   const handleCode = async (raw: string) => {
@@ -320,7 +323,7 @@ export default function PosPage() {
 
     setBusy(true);
     const { data, error } = await supabase.rpc('process_sale', {
-      p_items: cart.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+      p_items: cart.map((l) => ({ product_id: l.product.id, quantity: l.quantity, options: (l.options ?? []).map((o) => o.id) })),
       p_amount_paid: paidNum,
       p_payment_method: method,
       p_discount: disc,
@@ -332,7 +335,7 @@ export default function PosPage() {
 
     const res = data as SaleResult;
     setReceipt({ ...res, lines: cart, at: new Date().toISOString(), method, account: acctLabel || undefined, ref: ref.trim() || undefined });
-    cart.forEach((l) => !isMenu(l.product) && upsertLocal({ ...l.product, stock: l.product.stock - l.quantity }));
+    cart.forEach((l) => !isMade(l.product) && upsertLocal({ ...l.product, stock: l.product.stock - l.quantity }));
     resetOrder();
     beep();
     if (res.short?.length) {
@@ -411,7 +414,7 @@ export default function PosPage() {
                       type="button"
                       role="option"
                       aria-selected={i === hi}
-                      className={`suggest-item ${i === hi ? 'hi' : ''} ${!isMenu(p) && p.stock <= 0 ? 'out' : ''}`}
+                      className={`suggest-item ${i === hi ? 'hi' : ''} ${!isMade(p) && p.stock <= 0 ? 'out' : ''}`}
                       onMouseEnter={() => setHi(i)}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -431,7 +434,7 @@ export default function PosPage() {
                       </span>
                       <span className="suggest-right">
                         <b>{fmtMoney(p.price)}</b>
-                        {isMenu(p) ? (
+                        {isMade(p) ? (
                           (() => {
                             const n = makeable(p);
                             return (
@@ -495,13 +498,14 @@ export default function PosPage() {
                 <span />
               </div>
               {cart.map((l, i) => (
-                <div key={l.product.id} className={`order-row row-in ${flash === l.product.id ? 'flash' : ''}`}>
+                <div key={keyOf(l)} className={`order-row row-in ${flash === keyOf(l) ? 'flash' : ''}`}>
                   <span className="muted">{i + 1}</span>
                   <span className="ol-name">
                     <strong>{l.product.name}</strong>
+                    {!!l.options?.length && <span className="ol-opts">{optionText(l)}</span>}
                     <span className="mono small muted">
                       {l.product.word_code ?? l.product.barcode} ·{' '}
-                      {isMenu(l.product)
+                      {isMade(l.product)
                         ? (() => {
                             const n = makeable(l.product);
                             return n === null ? 'made to order' : `can make ${n}`;
@@ -509,19 +513,19 @@ export default function PosPage() {
                         : `${l.product.stock} in stock`}
                     </span>
                   </span>
-                  <span className="num">{fmtMoney(l.product.price)}</span>
+                  <span className="num">{fmtMoney(unitPrice(l))}</span>
                   <span className="center">
                     <span className="qty">
-                      <button onClick={() => (l.quantity <= 1 ? removeLine(l) : setQty(l.product.id, l.quantity - 1))} aria-label="Less">
+                      <button onClick={() => (l.quantity <= 1 ? removeLine(l) : setQty(keyOf(l), l.quantity - 1))} aria-label="Less">
                         <Minus size={13} />
                       </button>
-                      <input value={l.quantity} inputMode="numeric" onChange={(e) => setQty(l.product.id, Number(e.target.value))} />
-                      <button onClick={() => setQty(l.product.id, l.quantity + 1)} disabled={!isMenu(l.product) && l.quantity >= l.product.stock} aria-label="More">
+                      <input value={l.quantity} inputMode="numeric" onChange={(e) => setQty(keyOf(l), Number(e.target.value))} />
+                      <button onClick={() => setQty(keyOf(l), l.quantity + 1)} disabled={!isMade(l.product) && l.quantity >= l.product.stock} aria-label="More">
                         <Plus size={13} />
                       </button>
                     </span>
                   </span>
-                  <b className="num">{fmtMoney(l.product.price * l.quantity)}</b>
+                  <b className="num">{fmtMoney(unitPrice(l) * l.quantity)}</b>
                   <button className="icon-btn danger" onClick={() => removeLine(l)} aria-label="Remove">
                     <X size={15} />
                   </button>
@@ -630,6 +634,23 @@ export default function PosPage() {
         </div>
       </aside>
 
+      {choosing && (
+        <OptionPicker
+          product={choosing.product}
+          qty={choosing.qty}
+          options={optionsByMenu.get(choosing.product.id) ?? []}
+          onClose={() => {
+            setChoosing(null);
+            searchRef.current?.focus();
+          }}
+          onAdd={(qty, opts) => {
+            added(choosing.product, qty, opts);
+            setChoosing(null);
+            searchRef.current?.focus();
+          }}
+        />
+      )}
+
       <PaymentAccountCard account={showAccount} amount={fmtMoney(total)} onClose={() => setShowAccount(null)} />
 
       <ProductForm
@@ -639,7 +660,7 @@ export default function PosPage() {
         categories={categories}
         onSaved={(p) => {
           upsertLocal(p);
-          if (!isIngredient(p) && (isMenu(p) || p.stock > 0)) add(p);
+          if (!isIngredient(p) && (isMade(p) || p.stock > 0)) add(p);
         }}
       />
 
@@ -690,11 +711,11 @@ export default function PosPage() {
             )}
             <div className="receipt-lines">
               {receipt.lines.map((l) => (
-                <div key={l.product.id}>
+                <div key={keyOf(l)}>
                   <span>
-                    {l.quantity} × {l.product.name}
+                    {l.quantity} × {lineName(l)}
                   </span>
-                  <span>{fmtMoney(l.quantity * l.product.price)}</span>
+                  <span>{fmtMoney(l.quantity * unitPrice(l))}</span>
                 </div>
               ))}
               {receipt.discount > 0 && (
@@ -736,7 +757,7 @@ function printPosReceipt(r: Receipt, cashier: string) {
     receipt_no: r.receipt_no,
     at: r.at,
     cashier,
-    lines: r.lines.map((l) => ({ name: l.product.name, quantity: l.quantity, unit_price: l.product.price })),
+    lines: r.lines.map((l) => ({ name: lineName(l), quantity: l.quantity, unit_price: unitPrice(l) })),
     subtotal: r.subtotal,
     discount: r.discount,
     total: r.total,

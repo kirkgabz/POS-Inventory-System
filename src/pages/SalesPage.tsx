@@ -7,6 +7,7 @@ import { fmtDate, fmtMoney, methodLabel, roleName, takenBy } from '../lib/format
 import { getPeriod, type PeriodType } from '../lib/period';
 import { summarise } from '../lib/salesReport';
 import { printReceipt } from '../lib/receipt';
+import { fetchIngredientUsage, niceQty, type UsageRow } from '../lib/usage';
 import type { Sale } from '../lib/types';
 
 const PAGE = 1000;
@@ -37,6 +38,7 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageRow[]>([]);
 
   const period = useMemo(() => getPeriod(type, offset), [type, offset]);
 
@@ -72,6 +74,18 @@ export default function SalesPage() {
     [allSales, who],
   );
   const whoLabel = who === 'all' ? '' : takers.find((t) => t.key === who)?.name ?? '';
+
+  // food menu: ingredients used / wasted in this period (owner)
+  useEffect(() => {
+    if (!isAdmin) return;
+    let alive = true;
+    fetchIngredientUsage(period.start, period.end)
+      .then((u) => alive && setUsage(u))
+      .catch(() => alive && setUsage([]));
+    return () => {
+      alive = false;
+    };
+  }, [period, isAdmin]);
 
   const s = useMemo(() => summarise(sales, period), [sales, period]);
   const maxBar = Math.max(1, ...s.breakdown.map((b) => b.revenue));
@@ -112,7 +126,7 @@ export default function SalesPage() {
     setExporting(true);
     try {
       const { downloadSalesExcel } = await import('../lib/salesReport');
-      await downloadSalesExcel(sales, whoLabel ? { ...period, label: `${period.label} · ${whoLabel}` } : period, profile?.full_name ?? 'Store owner');
+      await downloadSalesExcel(sales, whoLabel ? { ...period, label: `${period.label} · ${whoLabel}` } : period, profile?.full_name ?? 'Store owner', usage);
       success('Report downloaded', 'Check your Downloads folder.');
     } catch (e) {
       failure('Could not create the file', errorMessage(e));
@@ -220,6 +234,53 @@ export default function SalesPage() {
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {isAdmin && usage.length > 0 && (
+        <section className="card reveal">
+          <header className="card-head">
+            <div>
+              <span className="eyebrow">Food menu</span>
+              <h3 className="display">Ingredients used</h3>
+            </div>
+            <div className="usage-totals">
+              <span>
+                Used <b>{fmtMoney(usage.reduce((a, u) => a + u.used * u.cost, 0))}</b>
+              </span>
+              <span className={usage.some((u) => u.wasted) ? 'neg' : 'muted'}>
+                Wasted <b>{fmtMoney(usage.reduce((a, u) => a + u.wasted * u.cost, 0))}</b>
+              </span>
+            </div>
+          </header>
+          <div className="table-wrap flat">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Ingredient</th>
+                  <th className="num">Used</th>
+                  <th className="num">Wasted</th>
+                  <th className="num">Restocked</th>
+                  <th className="num">In stock</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usage.slice(0, 12).map((u) => (
+                  <tr key={u.id}>
+                    <td>
+                      <strong>{u.name}</strong>
+                      <div className="muted small">{fmtMoney(u.used * u.cost)} used</div>
+                    </td>
+                    <td className="num">{niceQty(u.used, u.unit)}</td>
+                    <td className={`num ${u.wasted ? 'neg' : 'muted'}`}>{u.wasted ? niceQty(u.wasted, u.unit) : '—'}</td>
+                    <td className="num muted">{u.restocked ? `+${niceQty(u.restocked, u.unit)}` : '—'}</td>
+                    <td className={`num ${u.stock < 0 ? 'neg' : ''}`}>{niceQty(u.stock, u.unit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {usage.length > 12 && <p className="muted small">+{usage.length - 12} more in the Excel download.</p>}
         </section>
       )}
 

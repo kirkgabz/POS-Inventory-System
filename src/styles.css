@@ -1042,3 +1042,27 @@ body::before { opacity: 0.18; }
   .recipe-line { grid-template-columns: 1fr auto; }
   .recipe-line select { grid-column: 1 / -1; }
 }
+
+/* ---------- add-ons, combos, usage ---------- */
+.ol-opts { display: block; font-size: 12px; color: var(--accent); }
+.opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.opt-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--card); text-align: left; font-size: 14px; transition: border-color 0.2s, background 0.2s; }
+.opt-card:hover { border-color: var(--ink-3); }
+.opt-card.on { border-color: var(--ink); background: var(--accent-soft); }
+.opt-card small { color: var(--ink-3); white-space: nowrap; }
+.opt-tick { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line); display: grid; place-items: center; flex-shrink: 0; }
+.opt-card.on .opt-tick { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.opt-qty { margin-right: auto; }
+.opt-edit { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line-soft); }
+.opt-edit-head { display: flex; gap: 8px; align-items: center; }
+.opt-price { display: flex; align-items: center; gap: 4px; }
+.opt-price .input { width: 90px; }
+.opt-item { display: grid; grid-template-columns: 130px 80px 1fr auto; gap: 8px; align-items: center; }
+.opt-edit .link { justify-self: start; }
+.usage-totals { display: flex; gap: 16px; font-size: 13.5px; flex-wrap: wrap; }
+.table-wrap.flat { box-shadow: none; border: 0; }
+@media (max-width: 640px) {
+  .opt-item { grid-template-columns: 1fr 70px auto; }
+  .opt-item select:last-of-type { grid-column: 1 / -1; }
+  .opt-edit-head { flex-wrap: wrap; }
+}

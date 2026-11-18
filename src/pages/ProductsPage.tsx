@@ -1,9 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Boxes, Carrot, ChefHat, Lock, PackagePlus, Pencil, QrCode, Search, Sparkles, Trash2 } from 'lucide-react';
+import { Boxes, Carrot, ChefHat, Layers, Lock, PackagePlus, Pencil, QrCode, Search, Sparkles, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../hooks/useProducts';
 import { useRecipes } from '../hooks/useRecipes';
-import { canMake, kindOf } from '../lib/recipes';
+import { canMakeOf, isMade, kindOf } from '../lib/recipes';
 import ProductForm from '../components/ProductForm';
 import StockAdjust from '../components/StockAdjust';
 import Modal from '../components/Modal';
@@ -26,11 +26,12 @@ export default function ProductsPage() {
   const [adjusting, setAdjusting] = useState<Product | null>(null);
   const [labelFor, setLabelFor] = useState<Product | null>(null);
   const [kindF, setKindF] = useState<'all' | ProductKind>('all');
-  const { byMenu } = useRecipes();
+  const { data: recipes, byMenu, byCombo } = useRecipes();
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   // menu items have no stock of their own: use how many can be made right now
-  const avail = (p: Product) => (kindOf(p) === 'menu' ? canMake(byMenu.get(p.id), byId) ?? 0 : p.stock);
+  const avail = (p: Product) => (isMade(p) ? canMakeOf(p, recipes, byId) ?? 0 : p.stock);
+  const hasFood = products.some((p) => kindOf(p) !== 'item');
   const kindCount = (k: ProductKind) => products.filter((p) => p.is_active && kindOf(p) === k).length;
 
   const counts = useMemo(
@@ -42,7 +43,7 @@ export default function ProductsPage() {
       inactive: products.filter((p) => !p.is_active).length,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [products, byMenu],
+    [products, recipes],
   );
 
   const shown = useMemo(() => {
@@ -58,7 +59,7 @@ export default function ProductsPage() {
       return [p.name, p.barcode, p.word_code, p.category].some((v) => v?.toLowerCase().includes(q));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [products, query, filter, cat, kindF, byMenu]);
+  }, [products, query, filter, cat, kindF, recipes]);
 
   const remove = async (p: Product) => {
     const ok = await confirmAction({
@@ -113,13 +114,14 @@ export default function ProductsPage() {
         </select>
       </div>
 
-      {(kindCount('menu') > 0 || kindCount('ingredient') > 0) && (
+      {hasFood && (
         <div className="chips">
           {(
             [
               ['all', 'Everything', null],
               ['item', 'Items', null],
               ['menu', 'Menu', <ChefHat key="m" size={13} />],
+              ['combo', 'Combos', <Layers key="c" size={13} />],
               ['ingredient', 'Ingredients', <Carrot key="i" size={13} />],
             ] as ['all' | ProductKind, string, ReactNode][]
           ).map(([k, label, icon]) => (
@@ -187,6 +189,11 @@ export default function ProductsPage() {
                               <ChefHat size={10} /> menu
                             </span>
                           )}
+                          {kindOf(p) === 'combo' && (
+                            <span className="tag tag-menu">
+                              <Layers size={10} /> combo
+                            </span>
+                          )}
                           {kindOf(p) === 'ingredient' && (
                             <span className="tag tag-ing">
                               <Carrot size={10} /> ingredient
@@ -207,14 +214,14 @@ export default function ProductsPage() {
                   </td>
                   <td className="num">{kindOf(p) === 'ingredient' ? <span className="muted small">{fmtMoney(p.cost)}/{p.unit}</span> : fmtMoney(p.price)}</td>
                   <td className="num">
-                    {kindOf(p) === 'menu' ? (
+                    {isMade(p) ? (
                       <span className={`stock stock-${stockState(p)}`} title="How many can be made from the ingredients in stock">
-                        {byMenu.get(p.id)?.length ? (
+                        {(kindOf(p) === 'menu' ? byMenu.get(p.id)?.length : byCombo.get(p.id)?.length) ? (
                           <>
                             can make {avail(p)}
                           </>
                         ) : (
-                          'no recipe'
+                          kindOf(p) === 'menu' ? 'no recipe' : 'empty combo'
                         )}
                       </span>
                     ) : (
@@ -229,7 +236,7 @@ export default function ProductsPage() {
                     </button>
                     {canManageProducts && (
                       <>
-                        {kindOf(p) !== 'menu' && (
+                        {!isMade(p) && (
                           <button className="icon-btn" title="Adjust stock" onClick={() => setAdjusting(p)}>
                             <Boxes size={16} />
                           </button>

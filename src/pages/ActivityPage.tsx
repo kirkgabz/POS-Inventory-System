@@ -18,7 +18,7 @@ import { fmtMoney, initials, roleName } from '../lib/format';
 import type { ActivityAction, ProductActivity } from '../lib/types';
 
 type Range = 'today' | 'week' | 'month' | 'custom';
-type Filter = 'all' | 'added' | 'price' | 'edited' | 'in' | 'out';
+type Filter = 'all' | 'added' | 'price' | 'edited' | 'in' | 'out' | 'waste';
 
 const FILTERS: { key: Filter; label: string; actions: ActivityAction[] }[] = [
   { key: 'all', label: 'All', actions: [] },
@@ -27,6 +27,7 @@ const FILTERS: { key: Filter; label: string; actions: ActivityAction[] }[] = [
   { key: 'price', label: 'Price changes', actions: ['price'] },
   { key: 'edited', label: 'Edits', actions: ['edited', 'deleted'] },
   { key: 'out', label: 'Stock removed', actions: ['stock_out'] },
+  { key: 'waste', label: 'Spoilage / waste', actions: ['waste'] },
 ];
 
 const ACTION: Record<ActivityAction, { label: string; tone: string; icon: typeof History }> = {
@@ -34,6 +35,7 @@ const ACTION: Record<ActivityAction, { label: string; tone: string; icon: typeof
   restock: { label: 'Restocked', tone: 'sage', icon: ArrowUpCircle },
   stock_in: { label: 'Stock added', tone: 'sage', icon: ArrowUpCircle },
   stock_out: { label: 'Stock removed', tone: 'danger', icon: ArrowDownCircle },
+  waste: { label: 'Waste', tone: 'danger', icon: Trash2 },
   price: { label: 'Price change', tone: 'accent', icon: Tag },
   edited: { label: 'Edited', tone: 'ochre', icon: PencilLine },
   deleted: { label: 'Deleted', tone: 'danger', icon: Trash2 },
@@ -88,7 +90,7 @@ export function describe(a: ProductActivity): string[] {
     if (Number(c.pack_size) > 1) parts.push(`packs of ${c.pack_size}`);
     return [parts.join(' · ')];
   }
-  if (a.action === 'restock' || a.action === 'stock_in' || a.action === 'stock_out') {
+  if (a.action === 'restock' || a.action === 'stock_in' || a.action === 'stock_out' || a.action === 'waste') {
     const n = a.stock_change ?? 0;
     return [`${n > 0 ? '+' : '−'}${Math.abs(n)} in stock${a.note ? ` · ${a.note}` : ''}`];
   }
@@ -180,7 +182,7 @@ export default function ActivityPage() {
         unitsIn += Math.max(0, r.stock_change ?? 0);
       } else if (r.action === 'price') prices++;
       else if (r.action === 'restock' || r.action === 'stock_in') unitsIn += r.stock_change ?? 0;
-      else if (r.action === 'stock_out') unitsOut += Math.abs(r.stock_change ?? 0);
+      else if (r.action === 'stock_out' || r.action === 'waste') unitsOut += Math.abs(r.stock_change ?? 0);
     });
     return { added, prices, unitsIn, unitsOut };
   }, [rows]);

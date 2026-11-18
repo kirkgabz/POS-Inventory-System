@@ -4,9 +4,11 @@ import {
   Camera,
   Carrot,
   ChefHat,
+  Layers,
   CheckCircle2,
   ImagePlus,
   Info,
+  ListPlus,
   Loader2,
   Package,
   RefreshCw,
@@ -84,6 +86,10 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
   // menu items: their recipe (ingredient + amount per serving)
   const [recipe, setRecipe] = useState<{ ingredient_id: string; qty: string }[]>([]);
   const [ingredients, setIngredients] = useState<Product[]>([]);
+  // menu items: add-ons & options · combos: what's inside
+  const [opts, setOpts] = useState<OptDraft[]>([]);
+  const [combo, setCombo] = useState<{ component_id: string; qty: string }[]>([]);
+  const [sellables, setSellables] = useState<Product[]>([]);
   const kind: ProductKind = form.kind ?? 'item';
   const tail = useRef(randomTail());
   const wordTouched = useRef(false);
@@ -101,6 +107,34 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     wordTouched.current = false;
     setFillStock(true);
     setRecipe([]);
+    setOpts([]);
+    setCombo([]);
+    if (product && product.kind === 'menu') {
+      (async () => {
+        const { data: o } = await supabase.from('menu_options').select('id, name, price_delta, sort').eq('menu_id', product.id).order('sort');
+        const list = (o ?? []) as { id: string; name: string; price_delta: number }[];
+        if (!list.length) return;
+        const { data: items } = await supabase.from('menu_option_items').select('option_id, ingredient_id, qty').in('option_id', list.map((x) => x.id));
+        const rows = (items ?? []) as { option_id: string; ingredient_id: string; qty: number }[];
+        setOpts(
+          list.map((x) => ({
+            id: x.id,
+            name: x.name,
+            price: String(Number(x.price_delta)),
+            items: rows
+              .filter((it) => it.option_id === x.id)
+              .map((it) => ({ ingredient_id: it.ingredient_id, mode: it.qty < 0 ? 'less' : 'more', qty: String(Math.abs(it.qty)) })),
+          })),
+        );
+      })();
+    }
+    if (product && product.kind === 'combo') {
+      supabase
+        .from('combo_items')
+        .select('component_id, qty')
+        .eq('combo_id', product.id)
+        .then(({ data }) => setCombo(((data ?? []) as { component_id: string; qty: number }[]).map((c) => ({ component_id: c.component_id, qty: String(c.qty) }))));
+    }
     if (product && product.kind === 'menu') {
       supabase
         .from('recipe_items')
@@ -143,6 +177,28 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
   }, [open, kind]);
 
   const ingById = useMemo(() => new Map(ingredients.map((i) => [i.id, i])), [ingredients]);
+
+  // things a combo can contain (items and menu items)
+  useEffect(() => {
+    if (!open || kind !== 'combo') return;
+    supabase
+      .from('products')
+      .select('*')
+      .in('kind', ['item', 'menu'])
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => setSellables(((data as Product[]) ?? []).filter((p) => p.id !== product?.id).map((p) => ({ ...p, price: Number(p.price), cost: Number(p.cost) }))));
+  }, [open, kind, product?.id]);
+  const sellById = useMemo(() => new Map(sellables.map((p) => [p.id, p])), [sellables]);
+  const comboLines = useMemo(
+    () => combo.filter((c) => c.component_id && Math.trunc(Number(c.qty)) > 0).map((c) => ({ component_id: c.component_id, qty: Math.trunc(Number(c.qty)) })),
+    [combo],
+  );
+  const comboCost = useMemo(() => comboLines.reduce((s, c) => s + Number(sellById.get(c.component_id)?.cost ?? 0) * c.qty, 0), [comboLines, sellById]);
+  const comboRegular = useMemo(() => comboLines.reduce((s, c) => s + Number(sellById.get(c.component_id)?.price ?? 0) * c.qty, 0), [comboLines, sellById]);
+  useEffect(() => {
+    if (kind === 'combo') setForm((f) => ({ ...f, cost: round4(comboCost) }));
+  }, [kind, comboCost]);
   const recipeLines = useMemo(
     () => recipe.filter((l) => l.ingredient_id && Math.trunc(Number(l.qty)) > 0).map((l) => ({ ingredient_id: l.ingredient_id, qty: Math.trunc(Number(l.qty)) })),
     [recipe],
@@ -161,10 +217,10 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     setForm((f) => ({
       ...f,
       kind: k,
-      unit: k === 'ingredient' ? (INGREDIENT_UNITS.includes(f.unit) ? f.unit : 'g') : k === 'menu' ? 'pc' : f.unit,
+      unit: k === 'ingredient' ? (INGREDIENT_UNITS.includes(f.unit) ? f.unit : 'g') : k === 'menu' ? 'pc' : k === 'combo' ? 'set' : f.unit,
       price: k === 'ingredient' ? 0 : f.price,
     }));
-    if (k === 'menu') setCostMode('piece');
+    if (k === 'menu' || k === 'combo') setCostMode('piece');
   };
 
   // free the preview URL
@@ -314,8 +370,8 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
       price: Number(form.price),
       cost: Number(form.cost) || 0,
       kind,
-      pack_size: costMode === 'pack' && kind !== 'menu' ? packSize : null,
-      stock: kind === 'menu' ? 0 : Math.trunc(Number(form.stock) || 0),
+      pack_size: costMode === 'pack' && kind !== 'menu' && kind !== 'combo' ? packSize : null,
+      stock: kind === 'menu' || kind === 'combo' ? 0 : Math.trunc(Number(form.stock) || 0),
       low_stock_threshold: Math.trunc(Number(form.low_stock_threshold) || 0),
     };
     if (!payload.barcode) {
@@ -324,11 +380,21 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
     }
     if (kind === 'ingredient') payload.price = 0;
     if (kind === 'menu') payload.cost = round4(servingCost);
+    if (kind === 'combo') payload.cost = round4(comboCost);
+    if (kind === 'combo' && comboLines.length === 0) {
+      failure('Combo is empty', 'Add what goes in this meal, e.g. Burger, Fries and a drink.');
+      return;
+    }
+    const badOpt = kind === 'menu' ? opts.find((o) => !o.name.trim()) : undefined;
+    if (badOpt) {
+      failure('Name every add-on', 'Each add-on or option needs a name, e.g. "Extra patty" or "No veggies".');
+      return;
+    }
     if (kind === 'menu' && recipeLines.length === 0) {
       failure('Recipe is empty', 'Add at least one ingredient and how much one serving uses.');
       return;
     }
-    if (costMode === 'pack' && kind !== 'menu' && (!(packPrice > 0) || packSize < 2)) {
+    if (costMode === 'pack' && kind !== 'menu' && kind !== 'combo' && (!(packPrice > 0) || packSize < 2)) {
       failure('Pack details missing', 'Enter the price of one pack and how many pieces are inside (2 or more).');
       return;
     }
@@ -340,7 +406,8 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
       title: editing ? 'Save changes?' : 'Add this product?',
       html:
         `<b>${esc(payload.name)}</b> · ${kind === 'ingredient' ? `Ingredient · ${fmtMoney(payload.cost)} per ${esc(payload.unit)}` : `${fmtMoney(payload.price)} per ${esc(payload.unit)}`}<br/>` +
-        (kind === 'menu' ? `<span class="muted">${recipeLines.length} ingredient(s) in the recipe</span><br/>` : '') +
+        (kind === 'menu' ? `<span class="muted">${recipeLines.length} ingredient(s) in the recipe${opts.length ? ` · ${opts.length} add-on(s)` : ''}</span><br/>` : '') +
+        (kind === 'combo' ? `<span class="muted">${comboLines.length} item(s) inside${comboRegular > Number(form.price) ? ` · customer saves ${fmtMoney(comboRegular - Number(form.price))}` : ''}</span><br/>` : '') +
         `<span class="mono small">${esc(payload.barcode)}</span>` +
         (priceChanged ? `<br/><span class="muted">Price: ${fmtMoney(product!.price)} → <b>${fmtMoney(payload.price)}</b></span>` : '') +
         (payload.cost > 0 && !loss && kind !== 'ingredient'
@@ -398,6 +465,17 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
             .from('recipe_items')
             .insert(recipeLines.map((l) => ({ menu_id: saved!.id, ingredient_id: l.ingredient_id, qty: l.qty })));
           if (insErr) throw insErr;
+        }
+      }
+      // add-ons & options
+      if (kind === 'menu' || product?.kind === 'menu') await saveOptions(saved.id, kind === 'menu' ? opts : []);
+      // what's inside a combo
+      if (kind === 'combo' || product?.kind === 'combo') {
+        const { error: delC } = await supabase.from('combo_items').delete().eq('combo_id', saved.id);
+        if (delC) throw delC;
+        if (kind === 'combo' && comboLines.length) {
+          const { error: insC } = await supabase.from('combo_items').insert(comboLines.map((c) => ({ combo_id: saved!.id, component_id: c.component_id, qty: c.qty })));
+          if (insC) throw insC;
         }
       }
       onSaved(saved);
@@ -503,6 +581,16 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
             >
               <Carrot size={14} /> Ingredient
             </button>
+            <button
+              type="button"
+              className="chip-btn"
+              onClick={() => {
+                setKind('combo');
+                generateCode();
+              }}
+            >
+              <Layers size={14} /> Combo meal
+            </button>
           </div>
           <button
             type="button"
@@ -536,6 +624,9 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                 <button type="button" className={kind === 'menu' ? 'on' : ''} onClick={() => setKind('menu')}>
                   <ChefHat size={12} /> Menu item
                 </button>
+                <button type="button" className={kind === 'combo' ? 'on' : ''} onClick={() => setKind('combo')}>
+                  <Layers size={12} /> Combo
+                </button>
                 <button type="button" className={kind === 'ingredient' ? 'on' : ''} onClick={() => setKind('ingredient')}>
                   <Carrot size={12} /> Ingredient
                 </button>
@@ -543,6 +634,8 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
               <small className="muted kind-hint">
                 {kind === 'menu'
                   ? 'Made to order — selling it uses up its ingredients.'
+                  : kind === 'combo'
+                    ? 'A meal or bundle — selling it uses up everything inside.'
                   : kind === 'ingredient'
                     ? 'Used in recipes. Not sold at the register.'
                     : 'Sold as is, with its own stock.'}
@@ -589,7 +682,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
 
             <label className="field">
               <span>Product name</span>
-              <input ref={nameRef} className="input" required value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={scan === 'lookup' ? 'Looking up product…' : kind === 'menu' ? 'e.g. Classic Burger' : kind === 'ingredient' ? 'e.g. Burger patty' : 'e.g. Blue Hair Clip'} />
+              <input ref={nameRef} className="input" required value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={scan === 'lookup' ? 'Looking up product…' : kind === 'combo' ? 'e.g. Burger Meal' : kind === 'menu' ? 'e.g. Classic Burger' : kind === 'ingredient' ? 'e.g. Burger patty' : 'e.g. Blue Hair Clip'} />
             </label>
 
             <label className="field">
@@ -634,11 +727,11 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                 <select className="input" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
                   {(kind === 'ingredient'
                     ? [...INGREDIENT_UNITS, 'kg', 'L']
-                    : kind === 'menu'
-                      ? ['pc', 'serving', 'order', 'cup', 'set', 'bottle']
+                    : kind === 'menu' || kind === 'combo'
+                      ? ['pc', 'serving', 'order', 'cup', 'set', 'meal', 'bottle']
                       : ['pc', 'pack', 'box', 'bottle', 'kg', 'g', 'L', 'ml', 'dozen', 'set']
                   )
-                    .concat(form.unit && ![...INGREDIENT_UNITS, 'kg', 'L', 'pc', 'serving', 'order', 'cup', 'set', 'bottle', 'pack', 'box', 'dozen'].includes(form.unit) ? [form.unit] : [])
+                    .concat(form.unit && ![...INGREDIENT_UNITS, 'kg', 'L', 'pc', 'serving', 'order', 'cup', 'set', 'meal', 'bottle', 'pack', 'box', 'dozen'].includes(form.unit) ? [form.unit] : [])
                     .map((u) => (
                     <option key={u}>{u}</option>
                   ))}
@@ -652,7 +745,12 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                   <input className="input" type="number" min="0" step="0.01" required value={form.price} onChange={(e) => set('price', e.target.value as unknown as number)} />
                 </label>
               )}
-              {kind === 'menu' ? (
+              {kind === 'combo' ? (
+                <div className="field">
+                  <span>Cost per {form.unit}</span>
+                  <input className="input" readOnly tabIndex={-1} value={comboLines.length ? `${fmtMoney(comboCost)} from what's inside` : 'Add what goes in it below'} />
+                </div>
+              ) : kind === 'menu' ? (
                 <div className="field">
                   <span>Cost per {form.unit}</span>
                   <input className="input" readOnly tabIndex={-1} value={recipeLines.length ? `${fmtMoney(servingCost)} from the recipe` : 'Add ingredients below'} />
@@ -687,6 +785,18 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                   cost={servingCost}
                   makeable={makeable}
                   unit={form.unit}
+                />
+              )}
+              {kind === 'menu' && ingredients.length > 0 && <OptionsBuilder opts={opts} setOpts={setOpts} ingredients={ingredients} ingById={ingById} />}
+              {kind === 'combo' && (
+                <ComboBuilder
+                  combo={combo}
+                  setCombo={setCombo}
+                  sellables={sellables}
+                  sellById={sellById}
+                  cost={comboCost}
+                  regular={comboRegular}
+                  price={Number(form.price) || 0}
                 />
               )}
 
@@ -732,7 +842,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                     {profit.each < 0 ? (
                       <>
                         <b>Loss of {fmtMoney(-profit.each)} per {form.unit}</b> — the selling price is lower than the cost.
-                        {costMode === 'piece' && kind !== 'menu' ? (
+                        {costMode === 'piece' && kind !== 'menu' && kind !== 'combo' ? (
                           <>
                             {' '}Is {fmtMoney(profit.cost)} the price of a whole pack?{' '}
                             <button type="button" className="link" onClick={switchToPack}>
@@ -758,7 +868,7 @@ export default function ProductForm({ open, onClose, product, initialCode, categ
                 </div>
               )}
 
-              {kind !== 'menu' && (
+              {kind !== 'menu' && kind !== 'combo' && (
               <>
               <label className="field">
                 <span>{editing ? 'Stock (use “Adjust stock”)' : `Starting stock (${form.unit})`}</span>
@@ -954,6 +1064,201 @@ function RecipeBuilder({
             </button>
             <span>
               Cost per {unit}: <b>{fmtMoney(cost)}</b>
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- add-ons & options (menu items) ---------- */
+
+interface OptDraft {
+  id: string;
+  name: string;
+  price: string;
+  items: { ingredient_id: string; mode: 'more' | 'less'; qty: string }[];
+}
+
+const newId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+      });
+
+/** Replace a menu item's options in the database (keeps ids so open orders stay valid). */
+async function saveOptions(menuId: string, opts: OptDraft[]) {
+  const keep = opts.map((o) => o.id);
+  let del = supabase.from('menu_options').delete().eq('menu_id', menuId);
+  if (keep.length) del = del.not('id', 'in', `(${keep.join(',')})`);
+  const { error: e1 } = await del;
+  if (e1) throw e1;
+  if (!opts.length) return;
+  const { error: e2 } = await supabase.from('menu_options').upsert(
+    opts.map((o, i) => ({ id: o.id, menu_id: menuId, name: o.name.trim(), price_delta: Number(o.price) || 0, sort: i })),
+  );
+  if (e2) throw e2;
+  const { error: e3 } = await supabase.from('menu_option_items').delete().in('option_id', keep);
+  if (e3) throw e3;
+  const rows = opts.flatMap((o) =>
+    o.items
+      .filter((it) => it.ingredient_id && Math.trunc(Number(it.qty)) > 0)
+      .map((it) => ({ option_id: o.id, ingredient_id: it.ingredient_id, qty: (it.mode === 'less' ? -1 : 1) * Math.trunc(Number(it.qty)) })),
+  );
+  // one row per ingredient per option
+  const seen = new Set<string>();
+  const unique = rows.filter((r) => (seen.has(r.option_id + r.ingredient_id) ? false : (seen.add(r.option_id + r.ingredient_id), true)));
+  if (unique.length) {
+    const { error: e4 } = await supabase.from('menu_option_items').insert(unique);
+    if (e4) throw e4;
+  }
+}
+
+function OptionsBuilder({
+  opts,
+  setOpts,
+  ingredients,
+  ingById,
+}: {
+  opts: OptDraft[];
+  setOpts: (fn: (o: OptDraft[]) => OptDraft[]) => void;
+  ingredients: Product[];
+  ingById: Map<string, Product>;
+}) {
+  const patch = (i: number, p: Partial<OptDraft>) => setOpts((o) => o.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const patchItem = (i: number, k: number, p: Partial<OptDraft['items'][number]>) =>
+    setOpts((o) => o.map((x, j) => (j === i ? { ...x, items: x.items.map((it, m) => (m === k ? { ...it, ...p } : it)) } : x)));
+
+  return (
+    <div className="recipe-box reveal">
+      <div className="recipe-head">
+        <span>
+          <ListPlus size={15} /> <b>Add-ons &amp; options</b> <span className="muted">— chosen at the register</span>
+        </span>
+      </div>
+      {opts.length === 0 && <p className="muted small">e.g. “Extra patty” +₱30 uses 1 more patty · “No veggies” leaves out the lettuce and tomato.</p>}
+      {opts.map((o, i) => (
+        <div key={o.id} className="opt-edit">
+          <div className="opt-edit-head">
+            <input className="input grow" value={o.name} maxLength={60} onChange={(e) => patch(i, { name: e.target.value })} placeholder="Name, e.g. Extra patty" aria-label="Add-on name" />
+            <div className="opt-price">
+              <span className="muted">+₱</span>
+              <input className="input" type="number" step="0.01" value={o.price} onChange={(e) => patch(i, { price: e.target.value })} aria-label="Extra price" />
+            </div>
+            <button type="button" className="icon-btn danger" onClick={() => setOpts((x) => x.filter((_, j) => j !== i))} aria-label="Remove add-on">
+              <Trash2 size={15} />
+            </button>
+          </div>
+          {o.items.map((it, k) => (
+            <div key={k} className="opt-item">
+              <select className="input" value={it.mode} onChange={(e) => patchItem(i, k, { mode: e.target.value as 'more' | 'less' })} aria-label="Uses more or less">
+                <option value="more">Uses more</option>
+                <option value="less">Leaves out</option>
+              </select>
+              <input className="input" type="number" min="1" step="1" value={it.qty} onChange={(e) => patchItem(i, k, { qty: e.target.value })} aria-label="Amount" />
+              <select className="input" value={it.ingredient_id} onChange={(e) => patchItem(i, k, { ingredient_id: e.target.value })} aria-label="Ingredient">
+                <option value="">ingredient…</option>
+                {ingredients.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.unit} {x.name}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="icon-btn" onClick={() => patch(i, { items: o.items.filter((_, m) => m !== k) })} aria-label="Remove">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          <button type="button" className="link small" onClick={() => patch(i, { items: [...o.items, { ingredient_id: '', mode: 'more', qty: '1' }] })}>
+            + ingredient change
+          </button>
+          {o.items.some((it) => it.ingredient_id) && (
+            <small className="muted">
+              {o.items
+                .filter((it) => it.ingredient_id && Number(it.qty) > 0)
+                .map((it) => `${it.mode === 'less' ? '−' : '+'}${it.qty} ${ingById.get(it.ingredient_id)?.unit ?? ''} ${ingById.get(it.ingredient_id)?.name ?? ''}`)
+                .join(' · ')}
+            </small>
+          )}
+        </div>
+      ))}
+      <div className="recipe-foot">
+        <button type="button" className="btn btn-ghost btn-xs" onClick={() => setOpts((o) => [...o, { id: newId(), name: '', price: '0', items: [{ ingredient_id: '', mode: 'more', qty: '1' }] }])}>
+          + Add-on / option
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- combo meals ---------- */
+
+function ComboBuilder({
+  combo,
+  setCombo,
+  sellables,
+  sellById,
+  cost,
+  regular,
+  price,
+}: {
+  combo: { component_id: string; qty: string }[];
+  setCombo: (fn: (c: { component_id: string; qty: string }[]) => { component_id: string; qty: string }[]) => void;
+  sellables: Product[];
+  sellById: Map<string, Product>;
+  cost: number;
+  regular: number;
+  price: number;
+}) {
+  const used = new Set(combo.map((c) => c.component_id));
+  const update = (i: number, p: Partial<{ component_id: string; qty: string }>) => setCombo((c) => c.map((l, j) => (j === i ? { ...l, ...p } : l)));
+  return (
+    <div className="recipe-box reveal">
+      <div className="recipe-head">
+        <span>
+          <Layers size={15} /> <b>What's inside</b> <span className="muted">— one combo uses all of these</span>
+        </span>
+        {regular > 0 && price > 0 && regular > price && <span className="recipe-make">Customer saves {fmtMoney(regular - price)}</span>}
+      </div>
+      {sellables.length === 0 ? (
+        <p className="muted small">Add the items and menu items first, then group them into a combo.</p>
+      ) : (
+        <>
+          {combo.map((l, i) => {
+            const p = sellById.get(l.component_id);
+            return (
+              <div key={i} className="recipe-line">
+                <select className="input" value={l.component_id} onChange={(e) => update(i, { component_id: e.target.value })} aria-label="Item">
+                  <option value="">Choose item…</option>
+                  {sellables
+                    .filter((x) => x.id === l.component_id || !used.has(x.id))
+                    .map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name} — {fmtMoney(x.price)}
+                        {x.kind === 'menu' ? ' (menu)' : ''}
+                      </option>
+                    ))}
+                </select>
+                <div className="recipe-qty">
+                  <input className="input" type="number" min="1" step="1" value={l.qty} onChange={(e) => update(i, { qty: e.target.value })} aria-label="How many" />
+                  <span className="muted">×</span>
+                </div>
+                <span className="recipe-cost">{p ? fmtMoney(p.price * (Math.trunc(Number(l.qty)) || 0)) : '—'}</span>
+                <button type="button" className="icon-btn danger" onClick={() => setCombo((c) => c.filter((_, j) => j !== i))} aria-label="Remove">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            );
+          })}
+          <div className="recipe-foot">
+            <button type="button" className="btn btn-ghost btn-xs" disabled={used.size >= sellables.length} onClick={() => setCombo((c) => [...c, { component_id: '', qty: '1' }])}>
+              + Add item
+            </button>
+            <span>
+              Bought separately: <b>{fmtMoney(regular)}</b> · cost <b>{fmtMoney(cost)}</b>
             </span>
           </div>
         </>

@@ -29,6 +29,10 @@ It handles everyday store work in one place: selling at the counter, keeping tra
 - The register shows **how many can still be made** from the ingredients in stock. The recipe's **cost and profit** are worked out from the ingredient prices.
 - **Busy hours never stop a sale:** if an ingredient is short, the sale still goes through with a warning, and the store owner is notified to count and restock.
 - Ingredients don't appear at the register. Restock them like any product, including **by pack** (e.g. 1 bottle = 1,000 ml).
+- **Add-ons & options:** for example "Extra patty" (+₱30, uses 1 more patty) or "No veggies" (free, leaves out the lettuce and tomato). The cashier taps them when adding the item, and the price and the ingredients used adjust automatically.
+- **Combo meals:** for example Burger Meal = Burger + Fries + Coke at a bundle price. Selling one uses up everything inside, and the form shows how much the customer saves.
+- **Spoilage & waste:** when removing stock, choose why (spoiled/expired, damaged, used in store, lost or count correction). Waste is recorded with its peso value.
+- **Ingredient usage report:** the Sales page shows how much of each ingredient was used and wasted in the period. It's also a sheet in the Excel download.
 
 ### Sales reports
 - View sales by **day, week, month or year**, with a chart and the full list of transactions.
@@ -110,6 +114,9 @@ Changes pushed to the main branch on GitHub are published to the live site autom
 1. Add each **ingredient**: **Add product → Ingredient**. Choose a small unit (pc, g, ml, slice), then enter the cost and stock. Buying in bottles or packs? Use **Per pack**, e.g. 1 bottle ₱180 = 1000 ml.
 2. Add the **menu item**: **Add product → Menu item with a recipe**. Set the selling price, then **+ Add ingredient** for each one with the amount one serving uses.
 3. The form shows the cost per serving, the profit, and how many you can make right now.
+4. Optional **add-ons**: under **Add-ons & options**, add e.g. "Extra patty" +₱30 → *Uses more* 1 pc Patty, or "No veggies" ₱0 → *Leaves out* 15 g Lettuce.
+5. Optional **combo**: **Add product → Combo meal**, set the bundle price, then **+ Add item** for each thing inside (Burger ×1, Fries ×1, Coke ×1).
+6. Throwing something away? **Adjust stock → Remove** and choose **Spoiled / expired** or **Damaged**.
 
 ### 4. Selling
 1. Open **Point of Sale**.

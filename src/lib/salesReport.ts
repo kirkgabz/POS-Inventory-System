@@ -1,3 +1,4 @@
+import type { UsageRow } from './usage';
 import type { Sale } from './types';
 import { buckets, type Period } from './period';
 import { STORE_NAME, methodLabel, takenBy } from './format';
@@ -87,7 +88,7 @@ const INK = 'FF1F1C18';
 const PAPER = 'FFF5F1EA';
 const ACCENT = 'FFC8623F';
 
-export async function downloadSalesExcel(sales: Sale[], period: Period, generatedBy: string) {
+export async function downloadSalesExcel(sales: Sale[], period: Period, generatedBy: string, usage: UsageRow[] = []) {
   const ExcelJS = (await import('exceljs')).default;
   const s = summarise(sales, period);
   const wb = new ExcelJS.Workbook();
@@ -262,6 +263,24 @@ export async function downloadSalesExcel(sales: Sale[], period: Period, generate
     it.getRow(ir).values = ['Total', s.items, s.byProduct.reduce((a, p) => a + p.revenue, 0), s.cost, s.byProduct.reduce((a, p) => a + p.profit, 0)];
     [3, 4, 5].forEach((c) => (it.getRow(ir).getCell(c).numFmt = PESO));
     totalRow(it, ir);
+  }
+
+  /* ---- Ingredients (food menu) ---- */
+  if (usage.length) {
+    const ig = wb.addWorksheet('Ingredients', { views: [{ state: 'frozen', ySplit: 4 }] });
+    ig.columns = [{ width: 30 }, { width: 8 }, { width: 12 }, { width: 16 }, { width: 12 }, { width: 16 }, { width: 12 }, { width: 12 }];
+    title(ig, `${STORE_NAME} — Ingredients used`, 8);
+    ig.getRow(4).values = ['Ingredient', 'Unit', 'Used', 'Used value', 'Wasted', 'Waste value', 'Restocked', 'In stock now'];
+    headerRow(ig, 4);
+    usage.forEach((u, i) => {
+      const r = ig.getRow(5 + i);
+      r.values = [u.name, u.unit, u.used, u.used * u.cost, u.wasted, u.wasted * u.cost, u.restocked, u.stock];
+      [4, 6].forEach((c) => (r.getCell(c).numFmt = PESO));
+    });
+    const tr = 5 + usage.length;
+    ig.getRow(tr).values = ['Total', '', '', usage.reduce((a, u) => a + u.used * u.cost, 0), '', usage.reduce((a, u) => a + u.wasted * u.cost, 0)];
+    [4, 6].forEach((c) => (ig.getRow(tr).getCell(c).numFmt = PESO));
+    totalRow(ig, tr);
   }
 
   const buf = await wb.xlsx.writeBuffer();
