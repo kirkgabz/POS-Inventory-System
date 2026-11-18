@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { MessageProvider } from './context/MessageContext';
+import { PresenceProvider } from './context/PresenceContext';
 import { useEffect } from 'react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { STORE_NAME } from './lib/format';
@@ -82,6 +83,7 @@ function Gate() {
   return (
     <NotificationProvider>
       <MessageProvider>
+      <PresenceProvider>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
@@ -98,6 +100,7 @@ function Gate() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      </PresenceProvider>
       </MessageProvider>
     </NotificationProvider>
   );

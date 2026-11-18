@@ -44,6 +44,7 @@ It handles everyday store work in one place: selling at the counter, keeping tra
 - The store owner chooses which staff may **add products and change prices**. Every change staff make shows up for the owner as a **pop-up notification**.
 - An **Inventory log** for the store owner lists every product added, price change, edit and restock: who did it and when, filterable by person and date.
 - Every order records **who took it**, whether a staff member or the store owner.
+- **Online status:** on **Staff & Access**, a green dot shows who has the app open **right now**. Anyone offline shows when they were last on, e.g. **"Active 30 mins ago"**.
 
 ### Messages & reminders
 - The store owner sends a **message** (a note) or a **reminder** (with an optional due date and time) to **one, several or all staff**. Either kind can be marked **important**.

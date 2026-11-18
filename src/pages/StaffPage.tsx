@@ -4,6 +4,7 @@ import { Ban, Copy, KeyRound, Link2, Loader2, Send, Share2, ShieldCheck, ShieldO
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
+import { activeAgo, usePresence } from '../context/PresenceContext';
 import { supabase, errorMessage } from '../lib/supabase';
 import { confirmAction, failure, success, toast } from '../lib/alerts';
 import { STORE_NAME, fmtDate, initials, timeAgo } from '../lib/format';
@@ -38,6 +39,13 @@ export default function StaffPage() {
   const [savedCode, setSavedCode] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [shareInvite, setShareInvite] = useState<StaffInvite | null>(null);
+  const { online, lastSeen } = usePresence();
+  // re-render every 30s so "Active 3 mins ago" keeps counting
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const load = useCallback(async () => {
     const [{ data }, { data: s }, { data: inv }] = await Promise.all([
@@ -190,6 +198,11 @@ export default function StaffPage() {
             <span className="eyebrow">Team</span>
             <h3 className="display">Members</h3>
           </div>
+          {!loading && (
+            <span className="online-count">
+              <i className="presence-dot on" /> {people.filter((p) => p.id !== me?.id && online.has(p.id)).length} staff online
+            </span>
+          )}
         </header>
         {loading ? (
           <div className="skeleton" style={{ height: 120 }} />
@@ -197,7 +210,10 @@ export default function StaffPage() {
           <div className="people">
             {people.map((p) => (
               <div key={p.id} className={`person ${!p.is_active ? 'inactive' : ''}`}>
-                <span className={`avatar ${p.role === 'admin' ? 'admin' : ''}`}>{initials(p.full_name)}</span>
+                <span className="avatar-wrap">
+                  <span className={`avatar ${p.role === 'admin' ? 'admin' : ''}`}>{initials(p.full_name)}</span>
+                  {p.is_active && <i className={`presence-dot ${online.has(p.id) ? 'on' : ''}`} title={online.has(p.id) ? 'Online now' : 'Offline'} />}
+                </span>
                 <div className="grow">
                   <strong>
                     {p.full_name} {p.id === me?.id && <span className="muted small">(you)</span>}
@@ -206,6 +222,11 @@ export default function StaffPage() {
                     {p.email}
                     {!p.is_active && ' · deactivated'}
                   </div>
+                  {p.is_active && p.id !== me?.id && (
+                    <div className={`presence-text ${online.has(p.id) ? 'on' : ''}`}>
+                      {online.has(p.id) ? 'Online now' : activeAgo(lastSeen[p.id], now)}
+                    </div>
+                  )}
                 </div>
                 <span className={`tag ${p.role === 'admin' ? 'tag-dark' : ''}`}>{roleLabel(p.role)}</span>
 
